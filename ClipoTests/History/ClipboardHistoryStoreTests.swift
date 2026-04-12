@@ -1,0 +1,85 @@
+import XCTest
+@testable import Clipo
+
+final class ClipboardHistoryStoreTests: XCTestCase {
+    func testRecentItemsReturnNewestFirst() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = ClipboardHistoryStore(writer: database.writer)
+
+        try await store.insert(.stub(title: "Older", createdAt: .init(timeIntervalSince1970: 10)))
+        try await store.insert(.stub(title: "Newer", createdAt: .init(timeIntervalSince1970: 20)))
+
+        let items = try await store.recentItems(limit: 10)
+        XCTAssertEqual(items.map(\.title), ["Newer", "Older"])
+    }
+
+    func testTogglePinnedUpdatesStoredValue() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = ClipboardHistoryStore(writer: database.writer)
+        let item = ClipboardItem.stub(title: "Pin me")
+
+        try await store.insert(item)
+        try await store.setPinned(id: item.id, isPinned: true)
+
+        let items = try await store.recentItems(limit: 10)
+        XCTAssertEqual(items.first?.isPinned, true)
+    }
+
+    func testSearchMatchesTitleAndContent() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = ClipboardHistoryStore(writer: database.writer)
+
+        try await store.insert(.stub(title: "Sprint summary", contentText: "macOS release train"))
+        try await store.insert(.stub(title: "Another item", contentText: "nothing relevant"))
+
+        let items = try await store.search(query: "release")
+        XCTAssertEqual(items.map(\.title), ["Sprint summary"])
+    }
+
+    func testDeleteRemovesSingleItem() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = ClipboardHistoryStore(writer: database.writer)
+        let keep = ClipboardItem.stub(title: "Keep")
+        let remove = ClipboardItem.stub(title: "Remove")
+
+        try await store.insert(keep)
+        try await store.insert(remove)
+
+        try await store.delete(id: remove.id)
+
+        let items = try await store.recentItems(limit: 10)
+        XCTAssertEqual(items.map(\.title), ["Keep"])
+    }
+
+    func testClearHistoryKeepsPinnedItems() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = ClipboardHistoryStore(writer: database.writer)
+        let pinned = ClipboardItem.stub(title: "Pinned", isPinned: true)
+        let regular = ClipboardItem.stub(title: "Regular")
+
+        try await store.insert(pinned)
+        try await store.insert(regular)
+
+        try await store.clearHistory()
+
+        let items = try await store.recentItems(limit: 10)
+        XCTAssertEqual(items.map(\.title), ["Pinned"])
+    }
+
+    func testPurgeExpiredItemsRemovesOnlyOldUnpinnedItems() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = ClipboardHistoryStore(writer: database.writer)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let oldDate = now.addingTimeInterval(-(8 * 24 * 60 * 60))
+        let recentDate = now.addingTimeInterval(-(2 * 24 * 60 * 60))
+
+        try await store.insert(.stub(title: "Pinned old", createdAt: oldDate, isPinned: true))
+        try await store.insert(.stub(title: "Recent", createdAt: recentDate))
+        try await store.insert(.stub(title: "Expired", createdAt: oldDate))
+
+        try await store.purgeExpiredItems(olderThanDays: 7, now: now)
+
+        let items = try await store.recentItems(limit: 10)
+        XCTAssertEqual(items.map(\.title), ["Pinned old", "Recent"])
+    }
+}

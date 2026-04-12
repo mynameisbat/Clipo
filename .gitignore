@@ -1,0 +1,16 @@
+.superpowers/
+.derivedData/
+.DS_Store
+.idea/
+docs/*
+!docs/assets/
+!docs/assets/**
+plans/
+*.xcworkspace/
+*.xcuserdatad/
+*.xcuserstate
+*.dmg
+Pods/
+Carthage/
+.claude
+CLAUDE.md

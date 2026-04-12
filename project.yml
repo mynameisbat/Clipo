@@ -1,0 +1,50 @@
+name: Clipo
+options:
+  minimumXcodeGenVersion: 2.39.0
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: 7.0.0
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: 1.9.4
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 1
+targets:
+  Clipo:
+    type: application
+    platform: macOS
+    sources:
+      - path: Clipo
+    info:
+      path: Clipo/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: Clipo
+        NSPrincipalClass: NSApplication
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bat.clipo
+    dependencies:
+      - sdk: AppIntents.framework
+      - package: GRDB
+      - package: KeyboardShortcuts
+  ClipoTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ClipoTests
+    info:
+      path: ClipoTests/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+    dependencies:
+      - sdk: AppIntents.framework
+      - target: Clipo
