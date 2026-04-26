@@ -16,36 +16,59 @@ protocol AutoPasteDriving {
 
 @MainActor
 protocol TargetApplicationActivating {
+    var previousApplicationBundleIdentifier: String? { get }
     func prepareForReturnToPreviousApp()
     func activatePreviousApp()
 }
 
 final class PasteActionService: PasteService, @unchecked Sendable {
+    private enum PasteTiming {
+        static let defaultDelayNanoseconds: UInt64 = 120_000_000
+        static let windowsAppDelayNanoseconds: UInt64 = 800_000_000
+        static let windowsAppBundleIdentifier = "com.microsoft.rdc.macos"
+    }
+
     let clipboardWriter: ClipboardWriting
     let autoPasteDriver: AutoPasteDriving
     let permissions: AccessibilityPermissionChecking
     let targetApplicationActivator: TargetApplicationActivating
+    private let sleep: @Sendable (UInt64) async -> Void
 
     init(
         clipboardWriter: ClipboardWriting,
         autoPasteDriver: AutoPasteDriving,
         permissions: AccessibilityPermissionChecking,
-        targetApplicationActivator: TargetApplicationActivating
+        targetApplicationActivator: TargetApplicationActivating,
+        sleep: @escaping @Sendable (UInt64) async -> Void = { nanoseconds in
+            try? await Task.sleep(nanoseconds: nanoseconds)
+        }
     ) {
         self.clipboardWriter = clipboardWriter
         self.autoPasteDriver = autoPasteDriver
         self.permissions = permissions
         self.targetApplicationActivator = targetApplicationActivator
+        self.sleep = sleep
     }
 
     func paste(_ item: ClipboardItem) async throws -> PasteResult {
         try clipboardWriter.write(item: item)
         guard permissions.isTrusted else { return .copiedOnly }
         await targetApplicationActivator.activatePreviousApp()
-        // Give macOS a brief moment to return focus before sending Cmd+V.
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        let previousApplicationBundleIdentifier = await MainActor.run {
+            targetApplicationActivator.previousApplicationBundleIdentifier
+        }
+        await sleep(Self.pasteDelayNanoseconds(for: previousApplicationBundleIdentifier))
         try autoPasteDriver.pasteCurrentClipboard()
         return .pasted
+    }
+
+    private static func pasteDelayNanoseconds(for bundleIdentifier: String?) -> UInt64 {
+        switch bundleIdentifier {
+        case PasteTiming.windowsAppBundleIdentifier:
+            return PasteTiming.windowsAppDelayNanoseconds
+        default:
+            return PasteTiming.defaultDelayNanoseconds
+        }
     }
 }
 
@@ -53,6 +76,10 @@ final class PasteActionService: PasteService, @unchecked Sendable {
 final class PreviousApplicationActivator: TargetApplicationActivating {
     private let currentBundleIdentifier = Bundle.main.bundleIdentifier
     private var previousApplication: NSRunningApplication?
+
+    var previousApplicationBundleIdentifier: String? {
+        previousApplication?.bundleIdentifier
+    }
 
     func prepareForReturnToPreviousApp() {
         guard

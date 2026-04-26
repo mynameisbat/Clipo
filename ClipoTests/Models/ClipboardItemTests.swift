@@ -17,6 +17,25 @@ final class ClipboardItemTests: XCTestCase {
         XCTAssertFalse(ClipboardItem.stub(kind: .text, title: "Text").showsInlinePreviewByDefault)
     }
 
+    func testOnlyCodeAndImagesShowExpandedPreviewWhenSelected() {
+        let plainTextItem = ClipboardItem.stub(
+            kind: .text,
+            title: "Hello world",
+            contentText: "Hello world",
+            metadata: .empty()
+        )
+        let codeItem = ClipboardItem.stub(
+            kind: .text,
+            title: "print(\"Hello\")",
+            contentText: "print(\"Hello\")",
+            metadata: ClipboardItemMetadata(detectedLanguage: .swift, lineCount: 1)
+        )
+
+        XCTAssertFalse(plainTextItem.showsExpandedPreviewWhenSelected)
+        XCTAssertTrue(codeItem.showsExpandedPreviewWhenSelected)
+        XCTAssertTrue(ClipboardItem.stub(kind: .image, title: "Image").showsExpandedPreviewWhenSelected)
+    }
+
     func testPreviewContentReturnsRemoteImageURLForWebImageItems() {
         let item = ClipboardItem.stub(
             kind: .image,

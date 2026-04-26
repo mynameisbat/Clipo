@@ -89,6 +89,29 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item?.resourcePath, "https://images.example.com/photo.jpeg")
     }
 
+    func testXPhotoTweetHTMLSrcsetBecomesImageItem() throws {
+        let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
+        let reader = PasteboardPayloadReader(assetStore: store)
+        let html = """
+        <a href="https://x.com/DnewHome/status/2049693209409048876/photo/1">
+          <img alt="" srcset="https://pbs.twimg.com/media/Gw-example?format=jpg&amp;name=small 680w, https://pbs.twimg.com/media/Gw-example?format=jpg&amp;name=large 1200w">
+        </a>
+        """
+        let snapshot = PasteboardSnapshot(
+            strings: ["https://x.com/DnewHome/status/2049693209409048876/photo/1"],
+            fileURLs: [],
+            imageData: nil,
+            imageFileExtension: nil,
+            htmlData: html.data(using: .utf8),
+            sourceAppBundleId: "com.google.Chrome"
+        )
+
+        let item = try reader.read(snapshot: snapshot)
+
+        XCTAssertEqual(item?.kind, .image)
+        XCTAssertEqual(item?.resourcePath, "https://pbs.twimg.com/media/Gw-example?format=jpg&name=small")
+    }
+
     func testWebArchiveImageDataBecomesImageItem() throws {
         let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
         let reader = PasteboardPayloadReader(assetStore: store)

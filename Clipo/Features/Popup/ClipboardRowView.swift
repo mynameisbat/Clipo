@@ -1,27 +1,29 @@
 import SwiftUI
 
 struct ClipboardRowView: View {
+    private enum Appearance {
+        static let cornerRadius: CGFloat = 14
+    }
+
     let item: ClipboardItem
     let isSelected: Bool
+    let style: ClipboardPopupStyle
 
     private var shouldShowPreview: Bool {
-        item.showsInlinePreviewByDefault || isSelected
+        item.showsInlinePreviewByDefault || (isSelected && item.showsExpandedPreviewWhenSelected)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header with title and metadata
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        // Kind icon
-                        kindIcon
+                        iconBadge
                         Text(item.title)
-                            .font(.headline)
+                            .font(.system(size: 14, weight: .semibold))
                             .lineLimit(1)
                     }
 
-                    // Metadata badges
                     metadataBadges
                 }
 
@@ -34,49 +36,33 @@ struct ClipboardRowView: View {
                 }
             }
 
-            // Preview body
             if shouldShowPreview {
                 previewBody
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 50)
-        .background(isSelected ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .background(rowBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: Appearance.cornerRadius, style: .continuous)
+                .stroke(rowBorderColor, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: Appearance.cornerRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Appearance.cornerRadius, style: .continuous))
     }
-
-    // MARK: - Kind Icon
 
     @ViewBuilder
-    private var kindIcon: some View {
-        switch item.kind {
-        case .image:
-            Image(systemName: "photo")
-                .foregroundColor(.blue)
-        case .text:
-            if item.metadata.detectedLanguage != .unknown {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .foregroundColor(.purple)
-            } else {
-                Image(systemName: "doc.text")
-                    .foregroundColor(.secondary)
-            }
-        case .link:
-            Image(systemName: "link")
-                .foregroundColor(.cyan)
-        case .file:
-            Image(systemName: "doc")
-                .foregroundColor(.green)
-        }
+    private var iconBadge: some View {
+        kindIcon
+            .font(.system(size: 12, weight: .semibold))
+            .frame(width: 22, height: 22)
+            .background(kindTint.opacity(0.16))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
-
-    // MARK: - Metadata Badges
 
     @ViewBuilder
     private var metadataBadges: some View {
         HStack(spacing: 6) {
-            // Image metadata
             if item.kind == .image {
                 if let width = item.metadata.imageWidth, let height = item.metadata.imageHeight {
                     Badge(text: "\(width)×\(height)", color: .blue)
@@ -86,7 +72,6 @@ struct ClipboardRowView: View {
                 }
             }
 
-            // Code metadata
             if let language = item.metadata.detectedLanguage, language != .unknown {
                 Badge(text: language.displayName, color: languageColor(for: language))
                 if let lineCount = item.metadata.lineCount {
@@ -94,7 +79,6 @@ struct ClipboardRowView: View {
                 }
             }
 
-            // Text metadata
             if item.kind == .text && item.metadata.detectedLanguage == .unknown {
                 if let wordCount = item.metadata.wordCount {
                     Badge(text: "\(wordCount) words", color: .gray)
@@ -104,7 +88,6 @@ struct ClipboardRowView: View {
                 }
             }
 
-            // File metadata
             if item.kind == .file {
                 if let ext = item.metadata.fileExtension, !ext.isEmpty {
                     Badge(text: ext.uppercased(), color: .green)
@@ -131,8 +114,6 @@ struct ClipboardRowView: View {
         }
     }
 
-    // MARK: - Preview Body
-
     @ViewBuilder
     private var previewBody: some View {
         switch item.previewContent {
@@ -149,10 +130,8 @@ struct ClipboardRowView: View {
     private func textPreview(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if let language = item.metadata.detectedLanguage, language != .unknown {
-                // Code preview with syntax highlighting placeholder
                 codePreview(text, language: language)
             } else {
-                // Plain text preview
                 Text(text)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -168,7 +147,7 @@ struct ClipboardRowView: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundColor(.primary)
                 .padding(8)
-                .background(Color.black.opacity(0.05))
+                .background(Color.black.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .frame(maxWidth: .infinity)
@@ -217,6 +196,62 @@ struct ClipboardRowView: View {
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
     }
+
+    private var kindTint: Color {
+        switch item.kind {
+        case .image:
+            return .blue
+        case .text:
+            return item.metadata.detectedLanguage != .unknown ? .purple : .secondary
+        case .link:
+            return .cyan
+        case .file:
+            return .green
+        }
+    }
+
+    @ViewBuilder
+    private var kindIcon: some View {
+        switch item.kind {
+        case .image:
+            Image(systemName: "photo")
+                .foregroundColor(.blue)
+        case .text:
+            Image(systemName: "doc.text")
+                .foregroundColor(.secondary)
+        case .link:
+            Image(systemName: "link")
+                .foregroundColor(.cyan)
+        case .file:
+            Image(systemName: "doc")
+                .foregroundColor(.green)
+        }
+    }
+
+    private var rowBackground: some View {
+        RoundedRectangle(cornerRadius: Appearance.cornerRadius, style: .continuous)
+            .fill(isSelected ? selectedBackgroundColor : normalBackgroundColor)
+    }
+
+    private var rowBorderColor: Color {
+        isSelected ? selectedBorderColor : normalBorderColor
+    }
+
+    private var normalBackgroundColor: Color {
+        style == .anchoredToMenuBar ? Color.black.opacity(0.025) : Color.white.opacity(0.055)
+    }
+
+    private var selectedBackgroundColor: Color {
+        style == .anchoredToMenuBar ? Color.accentColor.opacity(0.12) : Color.accentColor.opacity(0.18)
+    }
+
+    private var normalBorderColor: Color {
+        style == .anchoredToMenuBar ? Color.black.opacity(0.05) : Color.white.opacity(0.07)
+    }
+
+    private var selectedBorderColor: Color {
+        style == .anchoredToMenuBar ? Color.accentColor.opacity(0.18) : Color.accentColor.opacity(0.28)
+    }
 }
 
 // MARK: - Badge Component
@@ -230,9 +265,9 @@ struct Badge: View {
             .font(.caption2)
             .fontWeight(.medium)
             .foregroundColor(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.14))
+            .clipShape(Capsule())
     }
 }

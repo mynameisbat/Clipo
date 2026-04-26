@@ -40,6 +40,29 @@ final class PasteActionServiceTests: XCTestCase {
         XCTAssertEqual(result, .pasted)
         XCTAssertEqual(order.events, ["write", "activate", "paste"])
     }
+
+    func testPasteUsesWindowsAppDelayProfile() async throws {
+        let clipboard = RecordingClipboardWriter()
+        let driver = RecordingAutoPasteDriver()
+        let activator = RecordingTargetApplicationActivator(bundleIdentifier: "com.microsoft.rdc.macos")
+        let permissions = StubAccessibilityPermissionService(isTrusted: true)
+        let sleepRecorder = SleepRecorder()
+        let service = PasteActionService(
+            clipboardWriter: clipboard,
+            autoPasteDriver: driver,
+            permissions: permissions,
+            targetApplicationActivator: activator,
+            sleep: { nanoseconds in
+                await sleepRecorder.sleep(nanoseconds: nanoseconds)
+            }
+        )
+
+        _ = try await service.paste(ClipboardItem.stub(title: "Hello", contentText: "Hello"))
+
+        let recordedNanoseconds = await sleepRecorder.recordedNanoseconds
+        XCTAssertEqual(recordedNanoseconds, [800_000_000])
+        XCTAssertEqual(driver.callCount, 1)
+    }
 }
 
 final class RecordingClipboardWriter: ClipboardWriting {
@@ -73,9 +96,11 @@ final class RecordingAutoPasteDriver: AutoPasteDriving {
 @MainActor
 final class RecordingTargetApplicationActivator: TargetApplicationActivating {
     private let eventOrder: EventOrder?
+    let previousApplicationBundleIdentifier: String?
 
-    init(eventOrder: EventOrder? = nil) {
+    init(eventOrder: EventOrder? = nil, bundleIdentifier: String? = nil) {
         self.eventOrder = eventOrder
+        self.previousApplicationBundleIdentifier = bundleIdentifier
     }
 
     func prepareForReturnToPreviousApp() {}
@@ -87,6 +112,14 @@ final class RecordingTargetApplicationActivator: TargetApplicationActivating {
 
 final class EventOrder {
     var events: [String] = []
+}
+
+actor SleepRecorder {
+    private(set) var recordedNanoseconds: [UInt64] = []
+
+    func sleep(nanoseconds: UInt64) async {
+        recordedNanoseconds.append(nanoseconds)
+    }
 }
 
 final class StubAccessibilityPermissionService: AccessibilityPermissionChecking {

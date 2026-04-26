@@ -259,9 +259,12 @@ struct PasteboardPayloadReader {
     private func extractImageURL(fromHTML html: String) -> URL? {
         let patterns = [
             #"<img[^>]+src=["']([^"']+)["']"#,
+            #"<img[^>]+srcset=["']([^"']+)["']"#,
             #"<source[^>]+srcset=["']([^"']+)["']"#,
             #"property=["']og:image["'][^>]+content=["']([^"']+)["']"#,
-            #"content=["']([^"']+)["'][^>]+property=["']og:image["']"#
+            #"content=["']([^"']+)["'][^>]+property=["']og:image["']"#,
+            #"name=["']twitter:image["'][^>]+content=["']([^"']+)["']"#,
+            #"content=["']([^"']+)["'][^>]+name=["']twitter:image["']"#
         ]
 
         for pattern in patterns {
@@ -278,7 +281,7 @@ struct PasteboardPayloadReader {
                 continue
             }
 
-            let candidate = String(html[captureRange])
+            let candidate = decodeHTMLAttributeValue(String(html[captureRange]))
                 .split(separator: ",")
                 .first
                 .map(String.init)?
@@ -292,6 +295,15 @@ struct PasteboardPayloadReader {
         }
 
         return nil
+    }
+
+    private func decodeHTMLAttributeValue(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
     }
 
     private func extractImageURL(fromHTMLData data: Data) -> URL? {

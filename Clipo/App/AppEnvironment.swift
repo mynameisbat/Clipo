@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -20,6 +21,7 @@ final class AppEnvironment: ObservableObject {
         let targetApplicationActivator = PreviousApplicationActivator()
         let payloadReader = PasteboardPayloadReader(assetStore: ImageAssetStore(baseURL: supportRoot.appendingPathComponent("images", isDirectory: true)))
         let snapshotProvider = SystemPasteboardSnapshotProvider()
+        let clipboardSoundPlayer = SystemClipboardSoundPlayer()
 
         self.historyStore = historyStore
         self.payloadReader = payloadReader
@@ -38,6 +40,9 @@ final class AppEnvironment: ObservableObject {
             initialFingerprint: Self.clipboardFingerprintStore.load(),
             persistLastFingerprint: { fingerprint in
                 Self.clipboardFingerprintStore.save(fingerprint)
+            },
+            onNewItemStored: { item in
+                await clipboardSoundPlayer.playIfNeeded(for: item)
             }
         )
     }
@@ -53,6 +58,63 @@ final class AppEnvironment: ObservableObject {
                 try? await monitorRef.processCurrentPasteboard()
             }
         }
+    }
+}
+
+actor SystemClipboardSoundPlayer {
+    private let currentBundleIdentifier = Bundle.main.bundleIdentifier
+    private let currentBundleIdentifierOverride: String?
+    private let isSoundEnabled: @Sendable () -> Bool
+    private let selectedSound: @Sendable () -> ClipboardSoundName
+    private let playNamedSoundOverride: (@Sendable (String) async -> Bool)?
+    private let beep: @Sendable () async -> Void
+    private var activeSound: NSSound?
+
+    init(
+        currentBundleIdentifier: String? = nil,
+        isSoundEnabled: @escaping @Sendable () -> Bool = {
+            ClipboardSoundPreference.isEnabled(userDefaults: .standard)
+        },
+        selectedSound: @escaping @Sendable () -> ClipboardSoundName = {
+            ClipboardSoundPreference.selectedSound(userDefaults: .standard)
+        },
+        playNamedSound: (@Sendable (String) async -> Bool)? = nil,
+        beep: @escaping @Sendable () async -> Void = {
+            NSSound.beep()
+        }
+    ) {
+        self.currentBundleIdentifierOverride = currentBundleIdentifier
+        self.isSoundEnabled = isSoundEnabled
+        self.selectedSound = selectedSound
+        self.playNamedSoundOverride = playNamedSound
+        self.beep = beep
+    }
+
+    func playIfNeeded(for item: ClipboardItem) async {
+        guard isSoundEnabled() else { return }
+        guard item.sourceAppBundleId != resolvedBundleIdentifier else { return }
+
+        let sound = selectedSound()
+        let didPlay: Bool
+        if let playNamedSoundOverride {
+            didPlay = await playNamedSoundOverride(sound.rawValue)
+        } else {
+            didPlay = playSystemSound(named: sound.rawValue)
+        }
+
+        if !didPlay {
+            await beep()
+        }
+    }
+
+    private func playSystemSound(named name: String) -> Bool {
+        guard let sound = NSSound(named: NSSound.Name(name)) else { return false }
+        activeSound = sound
+        return sound.play()
+    }
+
+    private var resolvedBundleIdentifier: String? {
+        currentBundleIdentifierOverride ?? currentBundleIdentifier
     }
 }
 
