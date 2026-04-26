@@ -9,4 +9,5 @@ protocol ClipboardPopupDismissing: AnyObject {
 protocol ClipboardPopupPresenting: AnyObject {
     func toggle() async
     func toggle(relativeTo positioningView: NSView?) async
+    func present(relativeTo positioningView: NSView?) async
 }

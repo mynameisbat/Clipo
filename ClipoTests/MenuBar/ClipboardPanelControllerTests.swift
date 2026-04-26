@@ -4,6 +4,34 @@ import XCTest
 
 @MainActor
 final class ClipboardPanelControllerTests: XCTestCase {
+    func testShortcutActionRecognizesToggleShortcut() {
+        let controller = makeController(popover: PopoverSpy(frame: nil), outsideClickMonitor: OutsideClickMonitorSpy())
+        let event = makeKeyEvent(keyCode: UInt16(ShortcutName.togglePopup.defaultShortcut?.carbonKeyCode ?? 0), modifiers: [.command, .shift])
+
+        XCTAssertEqual(controller.shortcutAction(for: event), .toggle)
+    }
+
+    func testShortcutActionRecognizesPastePickerShortcut() {
+        let controller = makeController(popover: PopoverSpy(frame: nil), outsideClickMonitor: OutsideClickMonitorSpy())
+        let event = makeKeyEvent(keyCode: UInt16(ShortcutName.openPastePicker.defaultShortcut?.carbonKeyCode ?? 0), modifiers: [.command, .option])
+
+        XCTAssertEqual(controller.shortcutAction(for: event), .present)
+    }
+
+    func testShortcutActionIgnoresNonMatchingShortcut() {
+        let controller = makeController(popover: PopoverSpy(frame: nil), outsideClickMonitor: OutsideClickMonitorSpy())
+        let event = makeKeyEvent(keyCode: 0, modifiers: [.command])
+
+        XCTAssertNil(controller.shortcutAction(for: event))
+    }
+
+    func testControllerUsesPopupContentSize() {
+        let popover = PopoverSpy(frame: nil)
+        _ = makeController(popover: popover, outsideClickMonitor: OutsideClickMonitorSpy())
+
+        XCTAssertEqual(popover.contentSize, NSSize(width: 420, height: 500))
+    }
+
     func testToggleStartsOutsideClickMonitoringWhenPopoverIsShown() async {
         let popover = PopoverSpy(frame: NSRect(x: 100, y: 100, width: 200, height: 200))
         let monitor = OutsideClickMonitorSpy()
@@ -50,6 +78,16 @@ final class ClipboardPanelControllerTests: XCTestCase {
         XCTAssertEqual(monitor.stopCalls, 0)
     }
 
+    func testPopoverAnchorsToCenteredRect() async {
+        let popover = PopoverSpy(frame: NSRect(x: 100, y: 100, width: 200, height: 200))
+        let controller = makeController(popover: popover, outsideClickMonitor: OutsideClickMonitorSpy())
+        let positioningView = NSView(frame: NSRect(x: 0, y: 0, width: 56, height: 24))
+
+        await controller.toggle(relativeTo: positioningView)
+
+        XCTAssertEqual(popover.lastPositioningRect, NSRect(x: 14, y: 0, width: 28, height: 24))
+    }
+
     private func makeController(
         popover: PopoverManaging,
         outsideClickMonitor: OutsideClickMonitoring,
@@ -69,6 +107,21 @@ final class ClipboardPanelControllerTests: XCTestCase {
             scheduleOutsideClickMonitoring: scheduleOutsideClickMonitoring
         )
     }
+
+    private func makeKeyEvent(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: keyCode
+        )!
+    }
 }
 
 @MainActor
@@ -81,6 +134,7 @@ private final class PopoverSpy: PopoverManaging {
     var animates = true
     private(set) var showCalls = 0
     private(set) var closeCalls = 0
+    private(set) var lastPositioningRect: NSRect?
 
     init(frame: NSRect?) {
         self.contentWindowFrame = frame
@@ -88,6 +142,7 @@ private final class PopoverSpy: PopoverManaging {
 
     func show(relativeTo positioningRect: NSRect, of positioningView: NSView, preferredEdge: NSRectEdge) {
         showCalls += 1
+        lastPositioningRect = positioningRect
         isShown = true
     }
 

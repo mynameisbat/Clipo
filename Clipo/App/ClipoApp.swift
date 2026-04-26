@@ -8,7 +8,7 @@ struct ClipoApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appDelegate.environment)
-                .frame(width: 420, height: 240)
+                .frame(width: 420, height: 360)
         }
     }
 }

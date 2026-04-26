@@ -30,6 +30,21 @@ final class MenuBarController: NSObject {
         await panelController?.toggle(relativeTo: statusItem.button)
     }
 
+    func showPastePicker() async {
+        targetApplicationActivator.prepareForReturnToPreviousApp()
+        await panelController?.present(relativeTo: statusItem.button)
+    }
+
+    func togglePopoverNearCursor() async {
+        targetApplicationActivator.prepareForReturnToPreviousApp()
+        await panelController?.toggle()
+    }
+
+    func showPastePickerNearCursor() async {
+        targetApplicationActivator.prepareForReturnToPreviousApp()
+        await panelController?.present(relativeTo: nil)
+    }
+
     @objc private func togglePanel() {
         Task { @MainActor in
             await togglePopover()

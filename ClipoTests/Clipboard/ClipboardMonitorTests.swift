@@ -88,6 +88,39 @@ final class ClipboardMonitorTests: XCTestCase {
         XCTAssertEqual(persistence.value, snapshot.fingerprint)
     }
 
+    func testMonitorNotifiesWhenNewClipboardItemIsStored() async throws {
+        let sink = RecordingClipboardSink()
+        let notifier = ClipboardSoundNotifierSpy()
+        let monitor = ClipboardMonitor(
+            reader: { _ in ClipboardItem.stub(title: "New", contentText: "New") },
+            snapshotProvider: { PasteboardSnapshot(strings: ["New"], fileURLs: [], imageData: nil, imageFileExtension: nil, sourceAppBundleId: "com.apple.TextEdit") },
+            sink: sink,
+            onNewItemStored: { item in await notifier.notify(for: item) }
+        )
+
+        try await monitor.processCurrentPasteboard()
+
+        let notifiedTitles = await notifier.notifiedTitles
+        XCTAssertEqual(notifiedTitles, ["New"])
+    }
+
+    func testMonitorDoesNotNotifyForDuplicateFingerprint() async throws {
+        let sink = RecordingClipboardSink()
+        let notifier = ClipboardSoundNotifierSpy()
+        let monitor = ClipboardMonitor(
+            reader: { _ in ClipboardItem.stub(title: "Same", contentText: "Same") },
+            snapshotProvider: { PasteboardSnapshot(strings: ["Same"], fileURLs: [], imageData: nil, imageFileExtension: nil, sourceAppBundleId: "com.apple.TextEdit") },
+            sink: sink,
+            onNewItemStored: { item in await notifier.notify(for: item) }
+        )
+
+        try await monitor.processCurrentPasteboard()
+        try await monitor.processCurrentPasteboard()
+
+        let notifiedTitles = await notifier.notifiedTitles
+        XCTAssertEqual(notifiedTitles, ["Same"])
+    }
+
     func testMonitorProcessesHTMLImageSnapshotEvenWhenTextFingerprintMatchesOldClipboard() async throws {
         let sink = RecordingClipboardSink()
         let html = "<img src=\"https://scontent.xx.fbcdn.net/v/t39.30808-6/12345_n.jpg?stp=dst-jpg\">"
@@ -155,5 +188,13 @@ final class FingerprintPersistenceRecorder: @unchecked Sendable {
         lock.lock()
         storedValue = fingerprint
         lock.unlock()
+    }
+}
+
+actor ClipboardSoundNotifierSpy {
+    private(set) var notifiedTitles: [String] = []
+
+    func notify(for item: ClipboardItem) {
+        notifiedTitles.append(item.title)
     }
 }

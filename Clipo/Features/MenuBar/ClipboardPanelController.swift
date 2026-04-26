@@ -1,14 +1,25 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
 final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopupPresenting, ClipboardPopupDismissing {
+    private enum Layout {
+        static let panelSize = NSSize(width: 420, height: 500)
+        static let anchorWidth: CGFloat = 28
+    }
+
+    enum PanelShortcutAction: Equatable {
+        case toggle
+        case present
+    }
+
     private let popover: PopoverManaging
     private let outsideClickMonitor: OutsideClickMonitoring
     private let scheduleOutsideClickMonitoring: (@escaping @MainActor () -> Void) -> Void
-    private weak var lastPositioningView: NSView?
     private let prepareForPresentation: @Sendable () async -> Void
     private var eventMonitor: Any?
+    private var cursorAnchorWindow: NSWindow?
     private weak var viewModel: ClipboardPopupViewModel?
 
     init(
@@ -27,9 +38,9 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
         self.viewModel = viewModel
         super.init()
         let hostingController = NSHostingController(rootView: ClipboardPopupView(viewModel: viewModel))
-        hostingController.view.frame = NSRect(x: 0, y: 0, width: 420, height: 520)
+        hostingController.view.frame = NSRect(origin: .zero, size: Layout.panelSize)
         popover.contentViewController = hostingController
-        popover.contentSize = NSSize(width: 420, height: 520)
+        popover.contentSize = Layout.panelSize
         popover.behavior = .transient
         popover.animates = true
     }
@@ -39,17 +50,30 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
     }
 
     func toggle(relativeTo positioningView: NSView?) async {
-        if let positioningView {
-            lastPositioningView = positioningView
-        }
+        await handlePresentation(relativeTo: positioningView, closesWhenShown: true)
+    }
 
+    func present(relativeTo positioningView: NSView?) async {
+        await handlePresentation(relativeTo: positioningView, closesWhenShown: false)
+    }
+
+    private func handlePresentation(relativeTo positioningView: NSView?, closesWhenShown: Bool) async {
         if popover.isShown {
-            closePopover()
+            if closesWhenShown {
+                closePopover()
+            } else {
+                await prepareForPresentation()
+                activatePopoverWindow()
+            }
             return
         }
 
         await prepareForPresentation()
-        showPopover(relativeTo: positioningView ?? lastPositioningView)
+        if let anchorView = positioningView {
+            showPopover(relativeTo: anchorView)
+        } else {
+            showPopoverNearMouseCursor()
+        }
     }
 
     func dismiss() async {
@@ -60,11 +84,14 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
         guard let positioningView else { return }
 
         NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: positioningView.bounds, of: positioningView, preferredEdge: .minY)
+        cursorAnchorWindow?.orderOut(nil)
+        cursorAnchorWindow = nil
+        popover.show(relativeTo: anchorRect(for: positioningView), of: positioningView, preferredEdge: .minY)
+        activatePopoverWindow()
 
-        guard let window = popover.contentViewController?.view.window else { return }
-        window.makeKey()
-        startKeyMonitoring(in: window)
+        if let window = popover.contentViewController?.view.window {
+            startKeyMonitoring(in: window)
+        }
 
         scheduleOutsideClickMonitoring { [weak self] in
             guard let self, self.popover.isShown else { return }
@@ -74,10 +101,72 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
         }
     }
 
+    private func showPopoverNearMouseCursor() {
+        guard let anchorView = makeCursorAnchorView() else { return }
+
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
+        activatePopoverWindow()
+
+        if let window = popover.contentViewController?.view.window {
+            startKeyMonitoring(in: window)
+        }
+
+        scheduleOutsideClickMonitoring { [weak self] in
+            guard let self, self.popover.isShown else { return }
+            self.outsideClickMonitor.start { [weak self] location in
+                self?.handlePotentialOutsideClick(at: location)
+            }
+        }
+    }
+
+    private func activatePopoverWindow() {
+        guard let window = popover.contentViewController?.view.window else { return }
+        window.makeKey()
+        window.makeKeyAndOrderFront(nil)
+    }
+
     private func closePopover() {
         outsideClickMonitor.stop()
         stopKeyMonitoring()
         popover.close()
+        cursorAnchorWindow?.orderOut(nil)
+        cursorAnchorWindow = nil
+    }
+
+    private func anchorRect(for positioningView: NSView) -> NSRect {
+        let bounds = positioningView.bounds
+        let anchorWidth = min(Layout.anchorWidth, bounds.width)
+        let originX = bounds.midX - (anchorWidth / 2)
+        return NSRect(x: originX, y: bounds.minY, width: anchorWidth, height: bounds.height)
+    }
+
+    private func makeCursorAnchorView() -> NSView? {
+        let mouseLocation = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) }) ?? NSScreen.main else {
+            return nil
+        }
+
+        let anchorRect = NSRect(x: mouseLocation.x - 1, y: mouseLocation.y - 1, width: 2, height: 2)
+        let window = NSWindow(
+            contentRect: anchorRect,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false,
+            screen: screen
+        )
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .statusBar
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        let anchorView = NSView(frame: NSRect(origin: .zero, size: anchorRect.size))
+        window.contentView = anchorView
+        window.orderFrontRegardless()
+        cursorAnchorWindow = window
+        return anchorView
     }
 
     // MARK: - Keyboard Monitoring
@@ -87,18 +176,27 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
 
         // Capture references for closure
         let viewModel = self.viewModel
-        let dismissAction: () -> Void = { [weak self] in
-            _ = Task { await self?.dismiss() }
-        }
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard window.isKeyWindow else { return event }
+
+            if let shortcutAction = self.shortcutAction(for: event) {
+                Task {
+                    switch shortcutAction {
+                    case .toggle:
+                        await self.toggle(relativeTo: nil)
+                    case .present:
+                        await self.present(relativeTo: nil)
+                    }
+                }
+                return nil
+            }
 
             let keyCode = event.keyCode
 
             switch keyCode {
             case 53: // Escape
-                dismissAction()
+                Task { await self.dismiss() }
                 return nil
 
             case 36: // Enter
@@ -136,6 +234,22 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
                 return event // Let all other keys pass through for search
             }
         }
+    }
+
+    func shortcutAction(for event: NSEvent) -> PanelShortcutAction? {
+        guard let shortcut = KeyboardShortcuts.Shortcut(event: event) else {
+            return nil
+        }
+
+        if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.togglePopup) {
+            return .toggle
+        }
+
+        if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.openPastePicker) {
+            return .present
+        }
+
+        return nil
     }
 
     private func stopKeyMonitoring() {

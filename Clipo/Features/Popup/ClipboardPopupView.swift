@@ -1,3 +1,4 @@
+import KeyboardShortcuts
 import SwiftUI
 
 struct ClipboardPopupView: View {
@@ -6,6 +7,8 @@ struct ClipboardPopupView: View {
     @State private var showingSettings = false
     @FocusState private var isSearchFocused: Bool
     @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @AppStorage(ClipboardSoundPreference.enabledStorageKey) private var clipboardSoundEnabled = true
+    @AppStorage(ClipboardSoundPreference.nameStorageKey) private var clipboardSoundNameRawValue = ClipboardSoundName.glass.rawValue
 
     var body: some View {
         if showingSettings {
@@ -119,82 +122,119 @@ struct ClipboardPopupView: View {
     }
 
     private var settingsView: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Button {
-                    showingSettings = false
-                } label: {
-                    Image(systemName: "chevron.left")
-                    Text("Back")
-                }
-                .buttonStyle(.borderless)
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: 16) {
+            ZStack {
                 Text("Settings")
                     .font(.headline)
 
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("General")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { newValue in
-                        AutoLaunchService.shared.setEnabled(newValue)
+                HStack {
+                    Button {
+                        showingSettings = false
+                    } label: {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
                     }
-            }
+                    .buttonStyle(.borderless)
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Permissions")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Label(
-                    viewModel.isAccessibilityTrusted ? "Accessibility enabled" : "Accessibility disabled",
-                    systemImage: viewModel.isAccessibilityTrusted ? "checkmark.shield" : "exclamationmark.triangle"
-                )
-                .foregroundColor(viewModel.isAccessibilityTrusted ? .green : .orange)
-
-                if !viewModel.isAccessibilityTrusted {
-                    Button("Open Accessibility Settings") {
-                        viewModel.openAccessibilitySettings()
-                    }
-                    .buttonStyle(.borderedProminent)
+                    Spacer()
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("History")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("General")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
 
-                Picker("Auto-delete after", selection: $viewModel.historyRetentionPolicy) {
-                    ForEach(HistoryRetentionPolicy.allCases, id: \.rawValue) { policy in
-                        Text(policy.title).tag(policy)
+                        Toggle("Launch at login", isOn: $launchAtLogin)
+                            .onChange(of: launchAtLogin) { newValue in
+                                AutoLaunchService.shared.setEnabled(newValue)
+                            }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Permissions")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Label(
+                            viewModel.isAccessibilityTrusted ? "Accessibility enabled" : "Accessibility disabled",
+                            systemImage: viewModel.isAccessibilityTrusted ? "checkmark.shield" : "exclamationmark.triangle"
+                        )
+                        .foregroundColor(viewModel.isAccessibilityTrusted ? .green : .orange)
+
+                        if !viewModel.isAccessibilityTrusted {
+                            Button("Open Accessibility Settings") {
+                                viewModel.openAccessibilitySettings()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Shortcuts")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        KeyboardShortcuts.Recorder("Toggle Clipo", name: ShortcutName.togglePopup)
+                        KeyboardShortcuts.Recorder("Open paste picker", name: ShortcutName.openPastePicker)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("History")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Picker("Auto-delete after", selection: $viewModel.historyRetentionPolicy) {
+                            ForEach(HistoryRetentionPolicy.allCases, id: \.rawValue) { policy in
+                                Text(policy.title).tag(policy)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Text("Pinned items are kept and are not auto-deleted.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Clipboard sound")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Toggle("Play sound on copy", isOn: $clipboardSoundEnabled)
+
+                        Picker("Sound", selection: selectedClipboardSound) {
+                            ForEach(ClipboardSoundName.allCases, id: \.rawValue) { sound in
+                                Text(sound.title).tag(sound)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .disabled(!clipboardSoundEnabled)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Text("Clipo v1.0.1")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
                     }
                 }
-                .pickerStyle(.menu)
-
-                Text("Pinned items are kept and are not auto-deleted.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
-
-            Spacer()
-
-            HStack {
-                Spacer()
-                Text("Clipo v1.0.0")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .padding(20)
         .frame(width: 420, height: 500)
+    }
+
+    private var selectedClipboardSound: Binding<ClipboardSoundName> {
+        Binding(
+            get: { ClipboardSoundName(rawValue: clipboardSoundNameRawValue) ?? .glass },
+            set: { clipboardSoundNameRawValue = $0.rawValue }
+        )
     }
 }

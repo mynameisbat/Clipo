@@ -38,9 +38,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             targetApplicationActivator: environment.targetApplicationActivator
         )
 
-        hotkeyService.register { [weak self] in
+        hotkeyService.restoreDefaultsIfNeeded()
+
+        hotkeyService.registerTogglePopup { [weak self] in
             Task { @MainActor in
-                await self?.menuBarController?.togglePopover()
+                await self?.menuBarController?.togglePopoverNearCursor()
+            }
+        }
+
+        hotkeyService.registerOpenPastePicker { [weak self] in
+            Task { @MainActor in
+                await self?.menuBarController?.showPastePickerNearCursor()
             }
         }
     }

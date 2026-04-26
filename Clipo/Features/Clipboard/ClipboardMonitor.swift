@@ -68,6 +68,7 @@ actor ClipboardMonitor: ClipboardMonitoring {
     private let snapshotProvider: @Sendable () -> PasteboardSnapshot
     private let sink: ClipboardItemSink
     private let persistLastFingerprint: @Sendable (String?) -> Void
+    private let onNewItemStored: @Sendable (ClipboardItem) async -> Void
     private var lastFingerprint: String?
 
     init(
@@ -75,13 +76,15 @@ actor ClipboardMonitor: ClipboardMonitoring {
         snapshotProvider: @escaping @Sendable () -> PasteboardSnapshot,
         sink: ClipboardItemSink,
         initialFingerprint: String? = nil,
-        persistLastFingerprint: @escaping @Sendable (String?) -> Void = { _ in }
+        persistLastFingerprint: @escaping @Sendable (String?) -> Void = { _ in },
+        onNewItemStored: @escaping @Sendable (ClipboardItem) async -> Void = { _ in }
     ) {
         self.reader = reader
         self.snapshotProvider = snapshotProvider
         self.sink = sink
         self.lastFingerprint = initialFingerprint
         self.persistLastFingerprint = persistLastFingerprint
+        self.onNewItemStored = onNewItemStored
     }
 
     func processCurrentPasteboard() async throws {
@@ -92,5 +95,6 @@ actor ClipboardMonitor: ClipboardMonitoring {
         lastFingerprint = fingerprint
         persistLastFingerprint(fingerprint)
         try await sink.store(item)
+        await onNewItemStored(item)
     }
 }
