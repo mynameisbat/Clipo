@@ -46,6 +46,8 @@ struct SettingsView: View {
                     .font(.headline)
                 KeyboardShortcuts.Recorder("Toggle Clipo", name: ShortcutName.togglePopup)
                 KeyboardShortcuts.Recorder("Open paste picker", name: ShortcutName.openPastePicker)
+                KeyboardShortcuts.Recorder("Screen extension toggle", name: ShortcutName.screenExtensionTogglePopup)
+                KeyboardShortcuts.Recorder("Screen extension paste picker", name: ShortcutName.screenExtensionOpenPastePicker)
             }
 
             VStack(alignment: .leading, spacing: 8) {

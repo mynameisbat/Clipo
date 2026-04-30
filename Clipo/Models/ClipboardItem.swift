@@ -123,6 +123,10 @@ extension ClipboardItem {
         kind == .image
     }
 
+    var showsExpandedPreviewWhenSelected: Bool {
+        kind == .image || (metadata.detectedLanguage ?? .unknown) != .unknown
+    }
+
     var previewContent: ClipboardPreviewContent {
         switch kind {
         case .text, .link:
