@@ -38,6 +38,10 @@ actor RecordingClipboardMonitor: ClipboardMonitoring {
     func processCurrentPasteboard() async throws {
         await events.append("process")
     }
+
+    nonisolated func notifyItemPasted(_ itemId: UUID) {
+        // No-op for tests
+    }
 }
 
 @MainActor

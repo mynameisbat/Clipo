@@ -55,6 +55,9 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item?.kind, .image)
     }
 
+    // MARK: - HTML Parsing Tests (Disabled - HTML parsing removed)
+
+    /*
     func testHTMLImageStringBecomesImageItem() throws {
         let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
         let reader = PasteboardPayloadReader(assetStore: store)
@@ -71,6 +74,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item?.kind, .image)
         XCTAssertEqual(item?.resourcePath, "https://cdn.example.com/media/photo?id=123")
     }
+    */
 
     func testDirectRemoteImageURLBecomesImageItem() throws {
         let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
@@ -89,6 +93,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item?.resourcePath, "https://images.example.com/photo.jpeg")
     }
 
+    /*
     func testXPhotoTweetHTMLSrcsetBecomesImageItem() throws {
         let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
         let reader = PasteboardPayloadReader(assetStore: store)
@@ -111,6 +116,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item?.kind, .image)
         XCTAssertEqual(item?.resourcePath, "https://pbs.twimg.com/media/Gw-example?format=jpg&name=small")
     }
+    */
 
     func testWebArchiveImageDataBecomesImageItem() throws {
         let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
@@ -158,6 +164,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(URL(fileURLWithPath: item?.resourcePath ?? "").pathExtension, "webp")
     }
 
+    /*
     func testUTF16HTMLDataImageBecomesImageItem() throws {
         let store = ImageAssetStore(baseURL: FileManager.default.temporaryDirectory)
         let reader = PasteboardPayloadReader(assetStore: store)
@@ -213,6 +220,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item?.kind, .text)
         XCTAssertEqual(item?.title, "Figma Selection")
     }
+    */
 
     private func makeWebArchive(mimeType: String, resourceURL: String, data: Data) throws -> Data {
         let archive: [String: Any] = [

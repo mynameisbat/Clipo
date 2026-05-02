@@ -66,14 +66,18 @@ struct SystemPasteboardSnapshotProvider {
 actor ClipboardMonitor: ClipboardMonitoring {
     private let reader: @Sendable (PasteboardSnapshot) throws -> ClipboardItem?
     private let snapshotProvider: @Sendable () -> PasteboardSnapshot
+    private let changeCountProvider: @Sendable () -> Int
     private let sink: ClipboardItemSink
     private let persistLastFingerprint: @Sendable (String?) -> Void
     private let onNewItemStored: @Sendable (ClipboardItem) async -> Void
     private var lastFingerprint: String?
+    private var lastPastedFingerprint: String?
+    private var lastChangeCount: Int = -1
 
     init(
         reader: @escaping @Sendable (PasteboardSnapshot) throws -> ClipboardItem?,
         snapshotProvider: @escaping @Sendable () -> PasteboardSnapshot,
+        changeCountProvider: @escaping @Sendable () -> Int = { NSPasteboard.general.changeCount },
         sink: ClipboardItemSink,
         initialFingerprint: String? = nil,
         persistLastFingerprint: @escaping @Sendable (String?) -> Void = { _ in },
@@ -81,6 +85,7 @@ actor ClipboardMonitor: ClipboardMonitoring {
     ) {
         self.reader = reader
         self.snapshotProvider = snapshotProvider
+        self.changeCountProvider = changeCountProvider
         self.sink = sink
         self.lastFingerprint = initialFingerprint
         self.persistLastFingerprint = persistLastFingerprint
@@ -88,13 +93,38 @@ actor ClipboardMonitor: ClipboardMonitoring {
     }
 
     func processCurrentPasteboard() async throws {
+        // Fast path: skip expensive snapshot read if pasteboard hasn't changed
+        let currentChangeCount = changeCountProvider()
+        guard currentChangeCount != lastChangeCount else { return }
+        lastChangeCount = currentChangeCount
+
         let snapshot = snapshotProvider()
         let fingerprint = snapshot.fingerprint
         guard fingerprint != lastFingerprint else { return }
+
+        // Skip storing if this is the item we just pasted
+        if let lastPastedFp = lastPastedFingerprint, fingerprint == lastPastedFp {
+            lastFingerprint = fingerprint
+            persistLastFingerprint(fingerprint)
+            lastPastedFingerprint = nil
+            return
+        }
+
         guard let item = try reader(snapshot) else { return }
         lastFingerprint = fingerprint
         persistLastFingerprint(fingerprint)
         try await sink.store(item)
         await onNewItemStored(item)
+    }
+
+    nonisolated func notifyItemPasted(_ itemId: UUID) {
+        Task {
+            await setLastPastedFingerprint()
+        }
+    }
+
+    private func setLastPastedFingerprint() {
+        let snapshot = snapshotProvider()
+        lastPastedFingerprint = snapshot.fingerprint
     }
 }

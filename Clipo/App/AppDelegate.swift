@@ -30,7 +30,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         panelController = ClipboardPanelController(
             viewModel: viewModel,
-            prepareForPresentation: presentationCoordinator.prepareForPresentation
+            prepareForPresentation: presentationCoordinator.prepareForPresentation,
+            onPopupStateChange: { [weak environment] isOpen in
+                if isOpen {
+                    environment?.notifyPopupOpened()
+                } else {
+                    environment?.notifyPopupClosed()
+                }
+            }
         )
         viewModel.popupDismisser = panelController
         menuBarController = MenuBarController(

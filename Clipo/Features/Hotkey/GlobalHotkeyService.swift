@@ -7,8 +7,7 @@ enum ShortcutName {
         default: .init(.v, modifiers: [.command, .shift])
     )
     nonisolated(unsafe) static let openPastePicker = KeyboardShortcuts.Name(
-        "openPastePicker",
-        default: .init(.v, modifiers: [.command, .option])
+        "openPastePicker"
     )
     nonisolated(unsafe) static let screenExtensionTogglePopup = KeyboardShortcuts.Name(
         "screenExtensionTogglePopup",
@@ -37,6 +36,15 @@ final class GlobalHotkeyService {
         restoreDefaultIfNeeded(ShortcutName.openPastePicker)
         restoreDefaultIfNeeded(ShortcutName.screenExtensionTogglePopup)
         restoreDefaultIfNeeded(ShortcutName.screenExtensionOpenPastePicker)
+        clearConflictingShortcuts()
+    }
+
+    // Cmd+Option+V conflicts with macOS Finder "Move Here" (cut file)
+    private func clearConflictingShortcuts() {
+        let cmdOptionV = KeyboardShortcuts.Shortcut(.v, modifiers: [.command, .option])
+        if ShortcutName.openPastePicker.shortcut == cmdOptionV {
+            KeyboardShortcuts.setShortcut(nil, for: ShortcutName.openPastePicker)
+        }
     }
 
     func registerTogglePopup(handler: @escaping () -> Void) {

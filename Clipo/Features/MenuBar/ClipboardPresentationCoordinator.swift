@@ -2,6 +2,7 @@ import Foundation
 
 protocol ClipboardMonitoring: Sendable {
     func processCurrentPasteboard() async throws
+    func notifyItemPasted(_ itemId: UUID)
 }
 
 @MainActor

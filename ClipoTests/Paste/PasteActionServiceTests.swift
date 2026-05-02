@@ -7,11 +7,13 @@ final class PasteActionServiceTests: XCTestCase {
         let clipboard = RecordingClipboardWriter()
         let driver = RecordingAutoPasteDriver()
         let permissions = StubAccessibilityPermissionService(isTrusted: false)
+        let monitor = MockPasteClipboardMonitor()
         let service = PasteActionService(
             clipboardWriter: clipboard,
             autoPasteDriver: driver,
             permissions: permissions,
-            targetApplicationActivator: RecordingTargetApplicationActivator()
+            targetApplicationActivator: RecordingTargetApplicationActivator(),
+            monitor: monitor
         )
 
         let result = try await service.paste(.stub(title: "Hello", contentText: "Hello"))
@@ -28,11 +30,13 @@ final class PasteActionServiceTests: XCTestCase {
         let driver = RecordingAutoPasteDriver(eventOrder: order)
         let activator = RecordingTargetApplicationActivator(eventOrder: order)
         let permissions = StubAccessibilityPermissionService(isTrusted: true)
+        let monitor = MockPasteClipboardMonitor()
         let service = PasteActionService(
             clipboardWriter: clipboard,
             autoPasteDriver: driver,
             permissions: permissions,
-            targetApplicationActivator: activator
+            targetApplicationActivator: activator,
+            monitor: monitor
         )
 
         let result = try await service.paste(.stub(title: "Hello", contentText: "Hello"))
@@ -46,12 +50,14 @@ final class PasteActionServiceTests: XCTestCase {
         let driver = RecordingAutoPasteDriver()
         let activator = RecordingTargetApplicationActivator(bundleIdentifier: "com.microsoft.rdc.macos")
         let permissions = StubAccessibilityPermissionService(isTrusted: true)
+        let monitor = MockPasteClipboardMonitor()
         let sleepRecorder = SleepRecorder()
         let service = PasteActionService(
             clipboardWriter: clipboard,
             autoPasteDriver: driver,
             permissions: permissions,
             targetApplicationActivator: activator,
+            monitor: monitor,
             sleep: { nanoseconds in
                 await sleepRecorder.sleep(nanoseconds: nanoseconds)
             }
@@ -137,5 +143,27 @@ final class StubAccessibilityPermissionService: AccessibilityPermissionChecking 
 
     func openSystemSettings() {
         openSystemSettingsCalls += 1
+    }
+}
+
+actor MockPasteClipboardMonitor: ClipboardMonitoring {
+    private var pastedItemIds: [UUID] = []
+
+    func processCurrentPasteboard() async throws {
+        // No-op for tests
+    }
+
+    nonisolated func notifyItemPasted(_ itemId: UUID) {
+        Task {
+            await recordPastedItem(itemId)
+        }
+    }
+
+    private func recordPastedItem(_ itemId: UUID) {
+        pastedItemIds.append(itemId)
+    }
+
+    func getPastedItemIds() -> [UUID] {
+        pastedItemIds
     }
 }

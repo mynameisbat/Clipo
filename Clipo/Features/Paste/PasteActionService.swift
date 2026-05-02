@@ -32,6 +32,7 @@ final class PasteActionService: PasteService, @unchecked Sendable {
     let autoPasteDriver: AutoPasteDriving
     let permissions: AccessibilityPermissionChecking
     let targetApplicationActivator: TargetApplicationActivating
+    let monitor: ClipboardMonitoring
     private let sleep: @Sendable (UInt64) async -> Void
 
     init(
@@ -39,6 +40,7 @@ final class PasteActionService: PasteService, @unchecked Sendable {
         autoPasteDriver: AutoPasteDriving,
         permissions: AccessibilityPermissionChecking,
         targetApplicationActivator: TargetApplicationActivating,
+        monitor: ClipboardMonitoring,
         sleep: @escaping @Sendable (UInt64) async -> Void = { nanoseconds in
             try? await Task.sleep(nanoseconds: nanoseconds)
         }
@@ -47,11 +49,13 @@ final class PasteActionService: PasteService, @unchecked Sendable {
         self.autoPasteDriver = autoPasteDriver
         self.permissions = permissions
         self.targetApplicationActivator = targetApplicationActivator
+        self.monitor = monitor
         self.sleep = sleep
     }
 
     func paste(_ item: ClipboardItem) async throws -> PasteResult {
         try clipboardWriter.write(item: item)
+        await monitor.notifyItemPasted(item.id)
         guard permissions.isTrusted else { return .copiedOnly }
         await targetApplicationActivator.activatePreviousApp()
         let previousApplicationBundleIdentifier = await MainActor.run {

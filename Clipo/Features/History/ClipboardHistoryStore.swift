@@ -17,15 +17,21 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
     private let writer: any DatabaseWriter
     private let retentionDaysProvider: @Sendable () -> Int?
     private let resourceCleaner: @Sendable ([String]) -> Void
+    private let cache: ClipboardCache
+    private let purgeScheduler: PurgeScheduler
 
     init(
         writer: any DatabaseWriter,
         retentionDaysProvider: @escaping @Sendable () -> Int? = { HistoryRetentionPolicy.current().days },
-        resourceCleaner: @escaping @Sendable ([String]) -> Void = ClipboardHistoryStore.cleanResources
+        resourceCleaner: @escaping @Sendable ([String]) -> Void = ClipboardHistoryStore.cleanResources,
+        cache: ClipboardCache = ClipboardCache(),
+        purgeScheduler: PurgeScheduler = PurgeScheduler()
     ) {
         self.writer = writer
         self.retentionDaysProvider = retentionDaysProvider
         self.resourceCleaner = resourceCleaner
+        self.cache = cache
+        self.purgeScheduler = purgeScheduler
     }
 
     func insert(_ item: ClipboardItem) async throws {
@@ -34,17 +40,30 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
             var record = ClipboardItemRecord(item: item)
             try record.insert(db)
         }
+
+        // Invalidate cache after insert
+        await cache.invalidate()
     }
 
     func recentItems(limit: Int) async throws -> [ClipboardItem] {
+        // Check cache first
+        if let cached = await cache.getRecent(limit: limit) {
+            return cached
+        }
+
+        // Cache miss - fetch from database
         try await purgeExpiredItemsUsingConfiguredPolicy(now: Date())
-        return try await writer.read { db in
+        let items = try await writer.read { db in
             try ClipboardItemRecord
                 .order(Column("isPinned").desc, Column("createdAt").desc)
                 .limit(limit)
                 .fetchAll(db)
                 .map(\.domain)
         }
+
+        // Update cache
+        await cache.cacheRecent(items)
+        return items
     }
 
     func setPinned(id: UUID, isPinned: Bool) async throws {
@@ -54,18 +73,38 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
                 arguments: [isPinned, id]
             )
         }
+
+        // Invalidate cache after pin status change
+        await cache.invalidate()
     }
 
     func search(query: String) async throws -> [ClipboardItem] {
+        // Check cache first
+        if let cached = await cache.getQuery(query) {
+            return cached
+        }
+
+        // Cache miss - fetch from database using FTS5
         try await purgeExpiredItemsUsingConfiguredPolicy(now: Date())
-        let pattern = "%\(query)%"
-        return try await writer.read { db in
-            try ClipboardItemRecord
-                .filter(sql: "title LIKE ? OR contentText LIKE ?", arguments: [pattern, pattern])
-                .order(Column("isPinned").desc, Column("createdAt").desc)
-                .fetchAll(db)
+
+        let items = try await writer.read { db in
+            // Use FTS5 for full-text search
+            let sql = """
+                SELECT c.*
+                FROM clipboard_items c
+                INNER JOIN clipboard_items_fts fts ON c.rowid = fts.rowid
+                WHERE clipboard_items_fts MATCH ?
+                ORDER BY c.isPinned DESC, c.createdAt DESC
+                """
+
+            return try ClipboardItemRecord
+                .fetchAll(db, sql: sql, arguments: [query])
                 .map(\.domain)
         }
+
+        // Update cache
+        await cache.cacheQuery(query, items: items)
+        return items
     }
 
     func store(_ item: ClipboardItem) async throws {
@@ -87,6 +126,9 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
         }
 
         resourceCleaner(resourcePaths)
+
+        // Invalidate cache after delete
+        await cache.invalidate()
     }
 
     func clearHistory() async throws {
@@ -100,11 +142,20 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
         }
 
         resourceCleaner(resourcePaths)
+
+        // Invalidate cache after clear
+        await cache.invalidate()
     }
 
     func purgeExpiredItemsUsingConfiguredPolicy(now: Date) async throws {
+        // Check if purge is needed based on schedule
+        guard await purgeScheduler.shouldPurge() else { return }
+
         guard let retentionDays = retentionDaysProvider() else { return }
         try await purgeExpiredItems(olderThanDays: retentionDays, now: now)
+
+        // Mark purge as completed
+        await purgeScheduler.markPurged()
     }
 
     func purgeExpiredItems(olderThanDays: Int, now: Date) async throws {

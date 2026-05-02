@@ -15,33 +15,72 @@ struct ClipboardPopupView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage(ClipboardSoundPreference.enabledStorageKey) private var clipboardSoundEnabled = true
     @AppStorage(ClipboardSoundPreference.nameStorageKey) private var clipboardSoundNameRawValue = ClipboardSoundName.glass.rawValue
+    @State private var isVisible = false
 
     var body: some View {
         Group {
             if showingSettings {
                 settingsView
             } else {
-                mainView
+                mainViewWithToast
             }
         }
         .background(panelBackground)
         .clipShape(RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
+        .scaleEffect(isVisible ? 1.0 : 0.95)
+        .opacity(isVisible ? 1.0 : 0.0)
+        .animation(.popupEntrance, value: isVisible)
+        .onAppear {
+            isVisible = true
+        }
+    }
+
+    private var mainViewWithToast: some View {
+        ZStack(alignment: .top) {
+            mainView
+
+            if let toast = viewModel.toastManagerForView.currentToast {
+                ToastView(toast: toast)
+                    .padding(.top, 16)
+                    .transition(ToastView.slideInTransition)
+                    .zIndex(1)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel(toast.message)
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.toastManagerForView.currentToast?.id)
     }
 
     private var mainView: some View {
-        VStack(spacing: 14) {
-            headerView
+        ZStack {
+            VStack(spacing: 14) {
+                headerView
 
-            if !viewModel.isAccessibilityTrusted {
-                permissionBanner
+                if !viewModel.isAccessibilityTrusted {
+                    permissionBanner
+                }
+
+                listContainer
+
+                footerActions
             }
+            .padding(14)
+            .frame(width: 420, height: 500)
 
-            listContainer
-
-            footerActions
+            KeyboardEventHandlingView { eventData async in
+                let shouldFocusSearch = await KeyboardNavigationHandler.handleKeyEvent(
+                    eventData,
+                    viewModel: viewModel,
+                    currentSearchFocused: isSearchFocused,
+                    popupDismisser: viewModel.popupDismisser
+                )
+                if let newFocusState = shouldFocusSearch {
+                    isSearchFocused = newFocusState
+                }
+                return true
+            }
+            .frame(width: 0, height: 0)
         }
-        .padding(14)
-        .frame(width: 420, height: 500)
         .task { await viewModel.load() }
         .onAppear {
             Task { await viewModel.refresh() }
@@ -157,39 +196,48 @@ struct ClipboardPopupView: View {
     }
 
     private var listContainer: some View {
-        ScrollView {
-            LazyVStack(spacing: 10) {
-                if viewModel.visibleItems.isEmpty {
-                    emptyState
-                } else {
-                    ForEach(Array(viewModel.visibleItems.enumerated()), id: \.element.id) { index, item in
-                        HStack(alignment: .top, spacing: 8) {
-                            Button {
-                                Task { await viewModel.activateItem(at: index) }
-                            } label: {
-                                ClipboardRowView(
-                                    item: item,
-                                    isSelected: index == viewModel.selectedIndex,
-                                    style: style
-                                )
-                            }
-                            .buttonStyle(.plain)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    if viewModel.visibleItems.isEmpty {
+                        emptyState
+                    } else {
+                        ForEach(Array(viewModel.visibleItems.enumerated()), id: \.element.id) { index, item in
+                            HStack(alignment: .top, spacing: 8) {
+                                Button {
+                                    Task { await viewModel.activateItem(at: index) }
+                                } label: {
+                                    ClipboardRowView(
+                                        item: item,
+                                        isSelected: index == viewModel.selectedIndex,
+                                        style: style
+                                    )
+                                }
+                                .buttonStyle(.plain)
 
-                            Button {
-                                Task { await viewModel.deleteItem(at: index) }
-                            } label: {
-                                Image(systemName: "trash")
-                                    .frame(width: 30, height: 30)
+                                Button {
+                                    Task { await viewModel.deleteItem(at: index) }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .frame(width: 30, height: 30)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.secondary)
+                                .background(Color.primary.opacity(0.04))
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.secondary)
-                            .background(Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .id(item.id)
                         }
                     }
                 }
+                .padding(12)
             }
-            .padding(12)
+            .onChange(of: viewModel.selectedIndex) { newIndex in
+                guard viewModel.visibleItems.indices.contains(newIndex) else { return }
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    proxy.scrollTo(viewModel.visibleItems[newIndex].id, anchor: .center)
+                }
+            }
         }
         .background(listBackgroundColor)
         .overlay(
@@ -334,7 +382,7 @@ struct ClipboardPopupView: View {
 
                     HStack {
                         Spacer()
-                        Text("Clipo v1.0.1")
+                        Text("Clipo v2.0.0")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -367,8 +415,7 @@ struct ClipboardPopupView: View {
         if style.usesNativePopoverBackground {
             NativePopoverBackgroundView()
         } else {
-            Rectangle()
-                .fill(.ultraThinMaterial)
+            LiquidGlassMaterial(cornerRadius: style.cornerRadius)
         }
     }
 
