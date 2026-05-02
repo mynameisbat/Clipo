@@ -10,7 +10,9 @@ final class AppEnvironment: ObservableObject {
     let pasteService: PasteActionService
     let targetApplicationActivator: PreviousApplicationActivator
     let monitor: ClipboardMonitor
-    private var monitorTimer: Timer?
+    let activityDetector: ActivityLevelDetector
+    let adaptiveMonitor: AdaptiveClipboardMonitor
+    private var monitorTimer: Timer? // Deprecated: Replaced by adaptiveMonitor
 
     init() {
         let supportRoot = try! ApplicationPaths.applicationSupportRoot()
@@ -27,12 +29,6 @@ final class AppEnvironment: ObservableObject {
         self.payloadReader = payloadReader
         self.permissions = permissions
         self.targetApplicationActivator = targetApplicationActivator
-        self.pasteService = PasteActionService(
-            clipboardWriter: SystemClipboardWriter(),
-            autoPasteDriver: SystemAutoPasteDriver(),
-            permissions: permissions,
-            targetApplicationActivator: targetApplicationActivator
-        )
         self.monitor = ClipboardMonitor(
             reader: { snapshot in try payloadReader.read(snapshot: snapshot) },
             snapshotProvider: { snapshotProvider.snapshot() },
@@ -45,18 +41,46 @@ final class AppEnvironment: ObservableObject {
                 await clipboardSoundPlayer.playIfNeeded(for: item)
             }
         )
+        self.pasteService = PasteActionService(
+            clipboardWriter: SystemClipboardWriter(),
+            autoPasteDriver: SystemAutoPasteDriver(),
+            permissions: permissions,
+            targetApplicationActivator: targetApplicationActivator,
+            monitor: monitor
+        )
+
+        // Initialize adaptive monitoring
+        self.activityDetector = ActivityLevelDetector()
+        self.adaptiveMonitor = AdaptiveClipboardMonitor(
+            clipboardMonitor: monitor,
+            activityDetector: activityDetector
+        )
     }
 
     func startMonitoring() {
-        let monitorRef = monitor
         let historyStoreRef = historyStore
+        let adaptiveMonitorRef = adaptiveMonitor
+
         Task {
+            // Purge expired items on startup
             try? await historyStoreRef.purgeExpiredItemsUsingConfiguredPolicy(now: Date())
+
+            // Start adaptive monitoring
+            await adaptiveMonitorRef.startMonitoring()
         }
-        monitorTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: true) { _ in
-            Task {
-                try? await monitorRef.processCurrentPasteboard()
-            }
+    }
+
+    func notifyPopupOpened() {
+        let adaptiveMonitorRef = adaptiveMonitor
+        Task {
+            await adaptiveMonitorRef.notifyPopupOpened()
+        }
+    }
+
+    func notifyPopupClosed() {
+        let adaptiveMonitorRef = adaptiveMonitor
+        Task {
+            await adaptiveMonitorRef.notifyPopupClosed()
         }
     }
 }

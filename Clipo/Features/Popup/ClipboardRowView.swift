@@ -8,6 +8,8 @@ struct ClipboardRowView: View {
     let item: ClipboardItem
     let isSelected: Bool
     let style: ClipboardPopupStyle
+    @State private var isHovered = false
+    @State private var sourceAppIcon: NSImage?
 
     private var shouldShowPreview: Bool {
         item.showsInlinePreviewByDefault || (isSelected && item.showsExpandedPreviewWhenSelected)
@@ -29,10 +31,20 @@ struct ClipboardRowView: View {
 
                 Spacer()
 
-                if item.isPinned {
-                    Image(systemName: "pin.fill")
-                        .foregroundColor(.orange)
-                        .padding(.top, 2)
+                HStack(spacing: 8) {
+                    if let sourceAppIcon {
+                        Image(nsImage: sourceAppIcon)
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                            .accessibilityLabel("Source app: \(item.sourceAppBundleId ?? "Unknown")")
+                    }
+
+                    if item.isPinned {
+                        Image(systemName: "pin.fill")
+                            .foregroundColor(.orange)
+                            .padding(.top, 2)
+                    }
                 }
             }
 
@@ -49,6 +61,21 @@ struct ClipboardRowView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: Appearance.cornerRadius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: Appearance.cornerRadius, style: .continuous))
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.hoverHighlight, value: isHovered)
+        .animation(.selection, value: isSelected)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .task {
+            await loadSourceAppIcon()
+        }
+    }
+
+    private func loadSourceAppIcon() async {
+        guard let bundleId = item.sourceAppBundleId else { return }
+        let provider = AppIconProvider()
+        sourceAppIcon = await provider.icon(for: bundleId)
     }
 
     @ViewBuilder
@@ -152,6 +179,7 @@ struct ClipboardRowView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: isSelected ? 120 : 60)
+        .animation(.smoothSlide, value: isSelected)
     }
 
     @ViewBuilder
@@ -163,6 +191,9 @@ struct ClipboardRowView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: isSelected ? 160 : 96)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                .animation(.smoothSlide, value: isSelected)
+                .accessibilityLabel("Image preview: \(item.title)")
+                .accessibilityHint("Press Enter to paste this image")
         } else {
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -173,14 +204,19 @@ struct ClipboardRowView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: isSelected ? 160 : 96)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .animation(.smoothSlide, value: isSelected)
+                        .accessibilityLabel("Image preview: \(item.title)")
+                        .accessibilityHint("Press Enter to paste this image")
                 case .empty:
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .frame(height: isSelected ? 160 : 96)
+                        .accessibilityLabel("Loading image preview")
                 case .failure:
                     Label("Image preview unavailable", systemImage: "photo")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .accessibilityLabel("Image preview unavailable for \(item.title)")
                 @unknown default:
                     EmptyView()
                 }

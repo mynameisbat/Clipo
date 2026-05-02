@@ -14,6 +14,7 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
     private let prepareForPresentation: @Sendable () async -> Void
     private var eventMonitor: Any?
     private let viewModel: ClipboardPopupViewModel
+    private let onPopupStateChange: (@Sendable (Bool) -> Void)?
 
     init(
         viewModel: ClipboardPopupViewModel,
@@ -22,13 +23,15 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
         outsideClickMonitor: OutsideClickMonitoring = OutsideClickMonitor(),
         scheduleOutsideClickMonitoring: @escaping (@escaping @MainActor () -> Void) -> Void = { action in
             DispatchQueue.main.async(execute: action)
-        }
+        },
+        onPopupStateChange: (@Sendable (Bool) -> Void)? = nil
     ) {
         self.prepareForPresentation = prepareForPresentation
         self.panelWindow = panelWindow
         self.outsideClickMonitor = outsideClickMonitor
         self.scheduleOutsideClickMonitoring = scheduleOutsideClickMonitoring
         self.viewModel = viewModel
+        self.onPopupStateChange = onPopupStateChange
         super.init()
     }
 
@@ -99,6 +102,9 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
             startKeyMonitoring(in: window)
         }
         startOutsideClickMonitoring()
+
+        // Notify popup opened
+        onPopupStateChange?(true)
     }
 
     func floatingPanelFrame(near mouseLocation: NSPoint, visibleFrame: NSRect) -> NSRect {
@@ -134,6 +140,9 @@ final class ClipboardPanelController: NSObject, ObservableObject, ClipboardPopup
         outsideClickMonitor.stop()
         stopKeyMonitoring()
         panelWindow.close()
+
+        // Notify popup closed
+        onPopupStateChange?(false)
     }
 
     private func anchorRect(for positioningView: NSView) -> NSRect {

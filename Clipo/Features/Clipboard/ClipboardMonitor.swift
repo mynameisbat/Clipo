@@ -70,6 +70,7 @@ actor ClipboardMonitor: ClipboardMonitoring {
     private let persistLastFingerprint: @Sendable (String?) -> Void
     private let onNewItemStored: @Sendable (ClipboardItem) async -> Void
     private var lastFingerprint: String?
+    private var lastPastedFingerprint: String?
 
     init(
         reader: @escaping @Sendable (PasteboardSnapshot) throws -> ClipboardItem?,
@@ -91,10 +92,30 @@ actor ClipboardMonitor: ClipboardMonitoring {
         let snapshot = snapshotProvider()
         let fingerprint = snapshot.fingerprint
         guard fingerprint != lastFingerprint else { return }
+
+        // Skip storing if this is the item we just pasted
+        if let lastPastedFp = lastPastedFingerprint, fingerprint == lastPastedFp {
+            lastFingerprint = fingerprint
+            persistLastFingerprint(fingerprint)
+            lastPastedFingerprint = nil
+            return
+        }
+
         guard let item = try reader(snapshot) else { return }
         lastFingerprint = fingerprint
         persistLastFingerprint(fingerprint)
         try await sink.store(item)
         await onNewItemStored(item)
+    }
+
+    nonisolated func notifyItemPasted(_ itemId: UUID) {
+        Task {
+            await setLastPastedFingerprint()
+        }
+    }
+
+    private func setLastPastedFingerprint() {
+        let snapshot = snapshotProvider()
+        lastPastedFingerprint = snapshot.fingerprint
     }
 }

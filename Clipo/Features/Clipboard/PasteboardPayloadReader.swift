@@ -32,30 +32,6 @@ struct PasteboardPayloadReader {
             return webArchiveCandidate
         }
 
-        if let htmlData = snapshot.htmlData,
-           let htmlImageURL = extractImageURL(fromHTMLData: htmlData) {
-            return makeRemoteImageItem(from: htmlImageURL, sourceAppBundleId: snapshot.sourceAppBundleId)
-        }
-
-        // Fallback: extract readable text from HTML when no image URL is found
-        // If no readable text found, use "Figma Selection" as title
-        if let htmlData = snapshot.htmlData {
-            let fallbackText = extractReadableHTMLText(from: htmlData)
-            let fallbackTitle = fallbackText.map { String($0.prefix(80)) } ?? "Figma Selection"
-            let textMetadata = extractTextMetadata(from: fallbackText)
-            return ClipboardItem(
-                id: UUID(),
-                kind: .text,
-                title: fallbackTitle,
-                contentText: fallbackText,
-                resourcePath: nil,
-                sourceAppBundleId: snapshot.sourceAppBundleId,
-                createdAt: Date(),
-                isPinned: false,
-                metadata: textMetadata
-            )
-        }
-
         if let rtfImageItem = try readRichTextImage(snapshot.rtfData, sourceAppBundleId: snapshot.sourceAppBundleId) {
             return rtfImageItem
         }
@@ -355,11 +331,26 @@ struct PasteboardPayloadReader {
     }
 
     private func decodeHTMLCandidates(from data: Data) -> [String] {
-        let encodings: [String.Encoding] = [.utf8, .utf16, .utf16LittleEndian, .utf16BigEndian, .unicode, .isoLatin1]
+        let encodings: [String.Encoding] = [
+            .utf8,
+            .utf16,
+            .utf16LittleEndian,
+            .utf16BigEndian,
+            .utf32,
+            .utf32LittleEndian,
+            .utf32BigEndian,
+            .unicode,
+            .isoLatin1,
+            .ascii
+        ]
         var candidates: [String] = []
         for encoding in encodings {
             if let string = String(data: data, encoding: encoding), !string.isEmpty {
-                candidates.append(string)
+                // Skip if string contains too many replacement characters (indicates wrong encoding)
+                let replacementCount = string.filter { $0 == "\u{FFFD}" }.count
+                if replacementCount < string.count / 10 {
+                    candidates.append(string)
+                }
             }
         }
 
