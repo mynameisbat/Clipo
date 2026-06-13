@@ -3,7 +3,9 @@ import GRDB
 
 protocol ClipboardHistoryLoading: Sendable {
     func recentItems(limit: Int) async throws -> [ClipboardItem]
+    func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem]
     func search(query: String) async throws -> [ClipboardItem]
+    func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem]
     func setPinned(id: UUID, isPinned: Bool) async throws
     func delete(id: UUID) async throws
     func clearHistory() async throws
@@ -41,17 +43,14 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
             try record.insert(db)
         }
 
-        // Invalidate cache after insert
         await cache.invalidate()
     }
 
     func recentItems(limit: Int) async throws -> [ClipboardItem] {
-        // Check cache first
         if let cached = await cache.getRecent(limit: limit) {
             return cached
         }
 
-        // Cache miss - fetch from database
         try await purgeExpiredItemsUsingConfiguredPolicy(now: Date())
         let items = try await writer.read { db in
             try ClipboardItemRecord
@@ -61,9 +60,13 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
                 .map(\.domain)
         }
 
-        // Update cache
         await cache.cacheRecent(items)
         return items
+    }
+
+    func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        let items = try await recentItems(limit: limit)
+        return Self.applyFilters(filters, to: items)
     }
 
     func setPinned(id: UUID, isPinned: Bool) async throws {
@@ -74,21 +77,17 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
             )
         }
 
-        // Invalidate cache after pin status change
         await cache.invalidate()
     }
 
     func search(query: String) async throws -> [ClipboardItem] {
-        // Check cache first
         if let cached = await cache.getQuery(query) {
             return cached
         }
 
-        // Cache miss - fetch from database using FTS5
         try await purgeExpiredItemsUsingConfiguredPolicy(now: Date())
 
         let items = try await writer.read { db in
-            // Use FTS5 for full-text search
             let sql = """
                 SELECT c.*
                 FROM clipboard_items c
@@ -102,9 +101,13 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
                 .map(\.domain)
         }
 
-        // Update cache
         await cache.cacheQuery(query, items: items)
         return items
+    }
+
+    func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        let items = try await search(query: query)
+        return Self.applyFilters(filters, to: items)
     }
 
     func store(_ item: ClipboardItem) async throws {
@@ -127,7 +130,6 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
 
         resourceCleaner(resourcePaths)
 
-        // Invalidate cache after delete
         await cache.invalidate()
     }
 
@@ -143,18 +145,15 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
 
         resourceCleaner(resourcePaths)
 
-        // Invalidate cache after clear
         await cache.invalidate()
     }
 
     func purgeExpiredItemsUsingConfiguredPolicy(now: Date) async throws {
-        // Check if purge is needed based on schedule
         guard await purgeScheduler.shouldPurge() else { return }
 
         guard let retentionDays = retentionDaysProvider() else { return }
         try await purgeExpiredItems(olderThanDays: retentionDays, now: now)
 
-        // Mark purge as completed
         await purgeScheduler.markPurged()
     }
 
@@ -190,6 +189,42 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
                 continue
             }
             try? fileManager.removeItem(atPath: path)
+        }
+    }
+
+    private static func applyFilters(_ filters: Set<HistoryFilter>, to items: [ClipboardItem]) -> [ClipboardItem] {
+        guard !filters.isEmpty else { return items }
+        return items.filter { item in
+            for filter in filters {
+                if !Self.matches(filter: filter, item: item) { return false }
+            }
+            return true
+        }
+    }
+
+    private static func matches(filter: HistoryFilter, item: ClipboardItem) -> Bool {
+        switch filter {
+        case .kind(let k):
+            return item.kind == k
+        case .pinned:
+            return item.isPinned
+        case .dateRange(let range):
+            return Self.isInRange(item.createdAt, range: range)
+        }
+    }
+
+    private static func isInRange(_ date: Date, range: HistoryFilter.DateRange) -> Bool {
+        let cal = Calendar.current
+        let now = Date()
+        switch range {
+        case .today:
+            return cal.isDateInToday(date)
+        case .yesterday:
+            let yesterday = cal.date(byAdding: .day, value: -1, to: now) ?? now
+            return cal.isDate(date, inSameDayAs: yesterday)
+        case .last7Days:
+            guard let sevenDaysAgo = cal.date(byAdding: .day, value: -7, to: now) else { return false }
+            return date >= sevenDaysAgo
         }
     }
 }

@@ -14,6 +14,7 @@ actor AdaptiveClipboardMonitor {
     private var timer: Timer?
     private var currentLevel: ActivityLevel = .active
     private var intervalCallback: IntervalCallback?
+    private var isPaused: Bool = false
 
     // Configuration — changeCount fast-exit makes frequent polling cheap
     private let intervals: [ActivityLevel: TimeInterval] = [
@@ -74,12 +75,23 @@ actor AdaptiveClipboardMonitor {
         intervalCallback?(targetInterval)
 
         // Update timer
-        if level == .sleeping {
+        if level == .sleeping || isPaused {
             // Pause monitoring
             timer?.invalidate()
             timer = nil
         } else {
             restartTimer(with: targetInterval)
+        }
+    }
+
+    func setPaused(_ paused: Bool) {
+        guard paused != isPaused else { return }
+        isPaused = paused
+        if paused {
+            timer?.invalidate()
+            timer = nil
+        } else {
+            restartTimer(with: currentInterval)
         }
     }
 

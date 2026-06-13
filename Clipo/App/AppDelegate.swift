@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        AppEnvironment.shared = environment
         environment.startMonitoring()
 
         let viewModel = ClipboardPopupViewModel(
@@ -32,10 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             viewModel: viewModel,
             prepareForPresentation: presentationCoordinator.prepareForPresentation,
             onPopupStateChange: { [weak environment] isOpen in
-                if isOpen {
-                    environment?.notifyPopupOpened()
-                } else {
-                    environment?.notifyPopupClosed()
+                Task { @MainActor in
+                    if isOpen {
+                        environment?.notifyPopupOpened()
+                    } else {
+                        environment?.notifyPopupClosed()
+                    }
                 }
             }
         )
@@ -56,6 +59,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyService.registerOpenPastePicker { [weak self] in
             Task { @MainActor in
                 await self?.menuBarController?.showPastePickerNearCursor()
+            }
+        }
+
+        hotkeyService.registerPauseToggle { [weak self] in
+            Task { @MainActor in
+                self?.environment.toggleMonitoringPaused()
+            }
+        }
+
+        for index in 1...9 {
+            hotkeyService.registerQuickPaste(at: index) { [weak self] in
+                Task { @MainActor in
+                    await self?.environment.quickPaste(at: index)
+                }
             }
         }
     }

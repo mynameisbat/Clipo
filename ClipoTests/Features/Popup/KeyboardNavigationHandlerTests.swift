@@ -197,10 +197,19 @@ final class MockKeyboardHistoryStore: ClipboardHistoryLoading, @unchecked Sendab
     func setPinned(id: UUID, isPinned: Bool) async throws {}
     func delete(id: UUID) async throws {}
     func clearHistory() async throws {}
+
+    func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        try await recentItems(limit: limit)
+    }
+
+    func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        try await search(query: query)
+    }
 }
 
 final class MockKeyboardPasteService: PasteService, @unchecked Sendable {
     func paste(_ item: ClipboardItem) async throws -> PasteResult { .copiedOnly }
+    func copyAsPlainText(_ item: ClipboardItem) async throws {}
 }
 
 final class MockKeyboardPermissions: AccessibilityPermissionChecking, @unchecked Sendable {

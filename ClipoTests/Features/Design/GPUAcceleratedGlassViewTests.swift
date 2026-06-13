@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 @testable import Clipo
 
+@MainActor
 final class GPUAcceleratedGlassViewTests: XCTestCase {
 
     // MARK: - Initialization
@@ -30,9 +31,6 @@ final class GPUAcceleratedGlassViewTests: XCTestCase {
     // MARK: - NSViewRepresentable
 
     func testGPUAcceleratedGlassViewCreatesNSView() {
-        // Given: GPUAcceleratedGlassView
-        let view = GPUAcceleratedGlassView(cornerRadius: 18)
-
         // When: Creating GlassEffectView directly
         let glassView = GPUAcceleratedGlassView.GlassEffectView()
 

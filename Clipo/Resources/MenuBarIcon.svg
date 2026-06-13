@@ -1,23 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="tealAccent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#14B8A6"/>
-      <stop offset="100%" style="stop-color:#0D9488"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Clipboard body -->
-  <rect x="2" y="3" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/>
-
-  <!-- Top clip -->
-  <rect x="5" y="1" width="8" height="3" rx="0.8" fill="currentColor"/>
-
-  <!-- Content lines -->
-  <rect x="4.5" y="6" width="6" height="1" rx="0.3" fill="currentColor" opacity="0.6"/>
-  <rect x="4.5" y="8.5" width="5" height="1" rx="0.3" fill="currentColor" opacity="0.6"/>
-  <rect x="4.5" y="11" width="5.5" height="1" rx="0.3" fill="currentColor" opacity="0.6"/>
-
-  <!-- Teal accent dot -->
-  <circle cx="14" cy="13" r="2.5" fill="url(#tealAccent)"/>
+  <g transform="rotate(-10 9 9)">
+    <rect x="4" y="2.5" width="10" height="13" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+  </g>
+  <g>
+    <rect x="4" y="2.5" width="10" height="13" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+  </g>
+  <g transform="rotate(6 9 9)">
+    <rect x="4" y="2.5" width="10" height="13" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <circle cx="12.5" cy="13.5" r="1.6" fill="currentColor"/>
+  </g>
 </svg>

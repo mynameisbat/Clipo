@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 @testable import Clipo
 
+@MainActor
 final class LiquidGlassMaterialTests: XCTestCase {
 
     // MARK: - Initialization

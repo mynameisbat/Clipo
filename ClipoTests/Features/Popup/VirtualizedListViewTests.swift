@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 @testable import Clipo
 
+@MainActor
 final class VirtualizedListViewTests: XCTestCase {
 
     // MARK: - Test Models

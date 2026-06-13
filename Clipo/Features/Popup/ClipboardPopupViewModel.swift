@@ -3,6 +3,7 @@ import SwiftUI
 
 protocol PasteService: AnyObject, Sendable {
     func paste(_ item: ClipboardItem) async throws -> PasteResult
+    func copyAsPlainText(_ item: ClipboardItem) async throws
 }
 
 @MainActor
@@ -18,6 +19,7 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
     @Published var searchText = ""
     @Published var selectedIndex = 0
     @Published var isAccessibilityTrusted = false
+    @Published var activeFilters: Set<HistoryFilter> = []
     @AppStorage(HistoryRetentionPolicy.storageKey) var historyRetentionPolicy: HistoryRetentionPolicy = .defaultPolicy
     private var permissionCheckTask: Task<Void, Never>?
 
@@ -35,15 +37,14 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         self.toastManager = toastManager
         self.isAccessibilityTrusted = permissions.isTrusted
 
-        // Start polling permission status every 2 seconds
         self.permissionCheckTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                guard let self = self else { break }
+                guard let self else { break }
                 let newStatus = self.permissions.isTrusted
                 if self.isAccessibilityTrusted != newStatus {
                     self.isAccessibilityTrusted = newStatus
                 }
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }
@@ -65,7 +66,6 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         allItems = (try? await historyStore.recentItems(limit: 100)) ?? []
         applyVisibleItems()
 
-        // Force check permission status when popup loads
         isAccessibilityTrusted = permissions.isTrusted
     }
 
@@ -74,16 +74,44 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
     }
 
     func applySearch() async {
-        if searchText.isEmpty {
-            allItems = (try? await historyStore.recentItems(limit: 100)) ?? []
-        } else {
-            allItems = (try? await historyStore.search(query: searchText)) ?? []
-
-            if allItems.isEmpty {
-                toastManager.show(.info("No results found"))
+        let query = searchText
+        let filters = activeFilters
+        do {
+            if query.isEmpty {
+                if filters.isEmpty {
+                    allItems = try await historyStore.recentItems(limit: 100)
+                } else {
+                    allItems = try await historyStore.recentItems(limit: 100, filters: filters)
+                }
+            } else {
+                if filters.isEmpty {
+                    allItems = try await historyStore.search(query: query)
+                } else {
+                    allItems = try await historyStore.search(query: query, filters: filters)
+                }
+                if allItems.isEmpty {
+                    toastManager.show(.info("No results found"))
+                }
             }
+        } catch {
+            allItems = []
         }
         applyVisibleItems()
+    }
+
+    func toggleFilter(_ filter: HistoryFilter) {
+        if activeFilters.contains(filter) {
+            activeFilters.remove(filter)
+        } else {
+            activeFilters.insert(filter)
+        }
+        Task { await applySearch() }
+    }
+
+    func clearFilters() {
+        guard !activeFilters.isEmpty else { return }
+        activeFilters.removeAll()
+        Task { await applySearch() }
     }
 
     func confirmSelection() async {
@@ -115,6 +143,15 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         }
     }
 
+    func togglePinned(at index: Int) async {
+        guard visibleItems.indices.contains(index) else { return }
+        let item = visibleItems[index]
+        let newPinned = !item.isPinned
+        try? await historyStore.setPinned(id: item.id, isPinned: newPinned)
+        await load()
+        toastManager.show(.success(newPinned ? "Item pinned" : "Item unpinned"))
+    }
+
     func deleteSelectedItem() async {
         guard let selectedItem else { return }
         try? await historyStore.delete(id: selectedItem.id)
@@ -126,6 +163,17 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         selectedIndex = index
         await deleteSelectedItem()
         toastManager.show(.success("Item deleted"))
+    }
+
+    func copyAsPlainText(at index: Int) async {
+        guard visibleItems.indices.contains(index) else { return }
+        let item = visibleItems[index]
+        do {
+            try await pasteService.copyAsPlainText(item)
+            toastManager.show(.success("Copied as plain text"))
+        } catch {
+            toastManager.show(.error("Copy failed"))
+        }
     }
 
     func clearHistory() async {

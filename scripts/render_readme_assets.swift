@@ -1,105 +1,202 @@
 import AppKit
 import SwiftUI
 
-struct DemoPanelView: View {
+enum ClipboardPopupStyle {
+    case anchoredToMenuBar
+    case nearCursor
+
+    var cornerRadius: CGFloat {
+        switch self {
+        case .anchoredToMenuBar: return 12
+        case .nearCursor: return 18
+        }
+    }
+}
+
+private struct DemoPanelView: View {
     let searchText: String
     let items: [ClipboardItem]
     let selectedIndex: Int
     let showAccessibilityBanner: Bool
+    let isCompact: Bool
+    let activeFilters: Set<HistoryFilter>
+    let showFilters: Bool
+    let isPaused: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    Text(searchText.isEmpty ? "Search clipboard..." : searchText)
-                        .foregroundColor(searchText.isEmpty ? .secondary : .primary)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+        VStack(spacing: 0) {
+            toolbar
+            searchField
 
-                Image(systemName: "gearshape")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 30, height: 30)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            if showFilters {
+                FilterChipStrip(activeFilters: .constant(activeFilters))
+                    .frame(height: 36)
+                    .background(Color.white.opacity(0.04))
             }
 
             if showAccessibilityBanner {
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.yellow)
-                    VStack(alignment: .leading, spacing: 4) {
+                        .foregroundColor(DT.Color.warning)
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Auto-paste needs Accessibility access")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(DT.Color.textPrimary)
                         Text("Enable to auto-paste items.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 10))
+                            .foregroundColor(DT.Color.textSecondary)
                     }
                     Spacer()
                     Text("Enable")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.yellow.opacity(0.18))
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(DT.Color.warning.opacity(0.18))
                         .clipShape(Capsule())
                 }
-                .padding(12)
-                .background(Color.yellow.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(DT.Color.warning.opacity(0.10))
             }
 
             ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        HStack(alignment: .top, spacing: 8) {
-                            ClipboardRowView(item: item, isSelected: index == selectedIndex)
-                            Image(systemName: "trash")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.secondary)
-                                .frame(width: 28, height: 28)
-                                .background(Color.white.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .padding(.top, 10)
+                LazyVStack(spacing: 8) {
+                    if items.isEmpty {
+                        EmptyStateView(searchText: searchText)
+                    } else {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            HStack(alignment: .top, spacing: 6) {
+                                ClipboardRowView(
+                                    item: item,
+                                    isSelected: index == selectedIndex,
+                                    isCompact: isCompact,
+                                    style: .anchoredToMenuBar,
+                                    quickPasteHint: index < 9 ? "⌘\(index + 1)" : nil,
+                                    onTogglePin: {},
+                                    onDelete: {},
+                                    onCopyAsPlainText: {}
+                                )
+
+                                if !isCompact {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(DT.Color.textSecondary)
+                                        .frame(width: 26, height: 26)
+                                        .background(Color.white.opacity(0.04))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                        .padding(.top, 10)
+                                }
+                            }
                         }
                     }
                 }
+                .padding(12)
             }
 
-            HStack {
-                Text("Clear History")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(Capsule())
+            footerActions
+        }
+        .frame(width: 420, height: 520)
+        .background(LiquidGlassMaterial(cornerRadius: 18))
+    }
 
-                Spacer()
+    private var toolbar: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Clipo")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(DT.Color.textPrimary)
+                Text("\(items.count) items\(isPaused ? " · paused" : "")")
+                    .font(.system(size: 10))
+                    .foregroundColor(DT.Color.textSecondary)
+            }
 
-                Text("Quit")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(Capsule())
+            Spacer()
+
+            Text("⇧⌘V")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(DT.Color.textSecondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.08))
+                .clipShape(Capsule())
+
+            Image(systemName: "rectangle.compress.vertical")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(DT.Color.textSecondary)
+                .frame(width: 26, height: 26)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            Image(systemName: "gearshape")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(DT.Color.textSecondary)
+                .frame(width: 26, height: 26)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundColor(DT.Color.textSecondary)
+
+            Text(searchText.isEmpty ? "Search clipboard..." : searchText)
+                .foregroundColor(searchText.isEmpty ? DT.Color.textSecondary : DT.Color.textPrimary)
+                .font(.system(size: 13))
+
+            Spacer()
+
+            if !searchText.isEmpty {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(DT.Color.textSecondary)
             }
         }
-        .padding(16)
-        .frame(width: 420, height: 500)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.11, blue: 0.15),
-                    Color(red: 0.07, green: 0.08, blue: 0.10)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .padding(.horizontal, 12)
+        .frame(height: 44)
+        .background(Color.white.opacity(0.04))
+    }
+
+    private var footerActions: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(isPaused ? DT.Color.warning : DT.Color.textSecondary)
+                .frame(width: 26, height: 26)
+                .background(Color.white.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    Circle()
+                        .fill(isPaused ? DT.Color.warning : Color.clear)
+                        .frame(width: 5, height: 5)
+                        .offset(x: 7, y: -7)
+                )
+
+            Spacer()
+
+            Image(systemName: "trash")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(DT.Color.textSecondary)
+                .frame(width: 26, height: 26)
+                .background(Color.white.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+        }
     }
 }
 
@@ -119,38 +216,75 @@ struct ReadmeAssetRenderer {
         try createDemoImage(at: generatedImageURL)
 
         let overviewItems = makeOverviewItems(imageURL: generatedImageURL)
-        let searchItems = makeSearchItems(imageURL: generatedImageURL)
+        let compactItems = makeCompactItems()
+        let filtersItems = makeFiltersItems(imageURL: generatedImageURL)
 
         try render(
             view: DemoPanelView(
                 searchText: "",
                 items: overviewItems,
                 selectedIndex: 0,
-                showAccessibilityBanner: false
+                showAccessibilityBanner: false,
+                isCompact: false,
+                activeFilters: [],
+                showFilters: false,
+                isPaused: false
             ),
             to: assetsDirectory.appendingPathComponent("clipo-overview.png")
         )
 
         try render(
             view: DemoPanelView(
-                searchText: "fig",
-                items: searchItems,
+                searchText: "",
+                items: compactItems,
                 selectedIndex: 1,
-                showAccessibilityBanner: false
+                showAccessibilityBanner: false,
+                isCompact: true,
+                activeFilters: [],
+                showFilters: false,
+                isPaused: false
             ),
-            to: assetsDirectory.appendingPathComponent("clipo-search.png")
+            to: assetsDirectory.appendingPathComponent("clipo-compact.png")
+        )
+
+        try render(
+            view: DemoPanelView(
+                searchText: "",
+                items: filtersItems,
+                selectedIndex: 1,
+                showAccessibilityBanner: false,
+                isCompact: false,
+                activeFilters: [.kind(.image), .dateRange(.last7Days)],
+                showFilters: true,
+                isPaused: false
+            ),
+            to: assetsDirectory.appendingPathComponent("clipo-filters.png")
+        )
+
+        try render(
+            view: DemoPanelView(
+                searchText: "",
+                items: overviewItems,
+                selectedIndex: 0,
+                showAccessibilityBanner: true,
+                isCompact: false,
+                activeFilters: [],
+                showFilters: false,
+                isPaused: false
+            ),
+            to: assetsDirectory.appendingPathComponent("clipo-banner.png")
         )
 
         let framesDirectory = temporaryDirectory.appendingPathComponent("gif-frames", isDirectory: true)
         try? FileManager.default.removeItem(at: framesDirectory)
         try FileManager.default.createDirectory(at: framesDirectory, withIntermediateDirectories: true)
 
-        let frameStates: [(String, [ClipboardItem], Int)] = [
-            ("", overviewItems, 0),
-            ("f", searchItems, 0),
-            ("fi", searchItems, 0),
-            ("fig", searchItems, 1),
-            ("figm", searchItems, 1)
+        let frameStates: [(String, [ClipboardItem], Int, Bool, Bool, Set<HistoryFilter>, Bool, Bool)] = [
+            ("", overviewItems, 0, false, false, [], false, false),
+            ("f", overviewItems, 0, false, false, [], false, false),
+            ("fi", overviewItems, 0, false, false, [], false, false),
+            ("fig", filtersItems, 1, false, false, [], false, false),
+            ("fig", filtersItems, 1, false, true, [.kind(.image)], true, false)
         ]
 
         for (index, state) in frameStates.enumerated() {
@@ -159,16 +293,22 @@ struct ReadmeAssetRenderer {
                     searchText: state.0,
                     items: state.1,
                     selectedIndex: state.2,
-                    showAccessibilityBanner: false
+                    showAccessibilityBanner: state.3,
+                    isCompact: state.4,
+                    activeFilters: state.5,
+                    showFilters: state.6,
+                    isPaused: state.7
                 ),
                 to: framesDirectory.appendingPathComponent(String(format: "frame-%02d.png", index))
             )
         }
+
+        print("Generated README assets in \(assetsDirectory.path)")
     }
 
     private static func render<V: View>(view: V, to outputURL: URL) throws {
         let hostingView = NSHostingView(rootView: view.colorScheme(.dark))
-        let size = NSSize(width: 420, height: 500)
+        let size = NSSize(width: 420, height: 520)
         hostingView.frame = NSRect(origin: .zero, size: size)
         hostingView.layoutSubtreeIfNeeded()
         hostingView.appearance = NSAppearance(named: .darkAqua)
@@ -193,54 +333,67 @@ struct ReadmeAssetRenderer {
 
         let bounds = NSRect(origin: .zero, size: size)
         let gradient = NSGradient(colors: [
-            NSColor(calibratedRed: 0.15, green: 0.37, blue: 0.78, alpha: 1),
-            NSColor(calibratedRed: 0.51, green: 0.24, blue: 0.87, alpha: 1),
-            NSColor(calibratedRed: 0.93, green: 0.34, blue: 0.51, alpha: 1)
+            NSColor(calibratedRed: 0.08, green: 0.72, blue: 0.65, alpha: 1),
+            NSColor(calibratedRed: 0.04, green: 0.40, blue: 0.50, alpha: 1),
+            NSColor(calibratedRed: 0.06, green: 0.09, blue: 0.16, alpha: 1)
         ])!
-        gradient.draw(in: bounds, angle: -28)
+        gradient.draw(in: bounds, angle: -135)
 
         let card = NSBezierPath(roundedRect: NSRect(x: 80, y: 110, width: 800, height: 320), xRadius: 32, yRadius: 32)
-        NSColor(calibratedWhite: 0.98, alpha: 0.18).setFill()
+        NSColor(calibratedWhite: 1, alpha: 0.10).setFill()
         card.fill()
 
-        let inner = NSBezierPath(roundedRect: NSRect(x: 120, y: 155, width: 420, height: 230), xRadius: 24, yRadius: 24)
-        NSColor(calibratedWhite: 0.05, alpha: 0.68).setFill()
-        inner.fill()
+        let stack = NSBezierPath(roundedRect: NSRect(x: 145, y: 175, width: 240, height: 200), xRadius: 18, yRadius: 18)
+        NSColor(calibratedWhite: 0.95, alpha: 0.92).setFill()
+        stack.fill()
 
-        let sidebar = NSBezierPath(roundedRect: NSRect(x: 575, y: 155, width: 265, height: 230), xRadius: 24, yRadius: 24)
-        NSColor(calibratedWhite: 1, alpha: 0.18).setFill()
-        sidebar.fill()
+        let stack2 = NSBezierPath(roundedRect: NSRect(x: 165, y: 165, width: 240, height: 200), xRadius: 18, yRadius: 18)
+        NSColor(calibratedWhite: 0.98, alpha: 0.92).setFill()
+        stack2.fill()
+
+        let stack3 = NSBezierPath(roundedRect: NSRect(x: 185, y: 155, width: 240, height: 200), xRadius: 18, yRadius: 18)
+        NSColor.white.setFill()
+        stack3.fill()
+
+        NSColor(calibratedWhite: 0.85, alpha: 1).setFill()
+        NSBezierPath(roundedRect: NSRect(x: 210, y: 280, width: 140, height: 12), xRadius: 4, yRadius: 4).fill()
+        NSBezierPath(roundedRect: NSRect(x: 210, y: 305, width: 180, height: 8), xRadius: 3, yRadius: 3).fill()
+        NSBezierPath(roundedRect: NSRect(x: 210, y: 322, width: 150, height: 8), xRadius: 3, yRadius: 3).fill()
+
+        let dot = NSBezierPath(ovalIn: NSRect(x: 360, y: 195, width: 38, height: 38))
+        NSColor(calibratedRed: 0.08, green: 0.72, blue: 0.65, alpha: 1).setFill()
+        dot.fill()
 
         let title = NSAttributedString(
-            string: "Clipo Preview",
+            string: "Clipo",
             attributes: [
-                .font: NSFont.systemFont(ofSize: 34, weight: .bold),
+                .font: NSFont.systemFont(ofSize: 56, weight: .bold),
                 .foregroundColor: NSColor.white
             ]
         )
-        title.draw(at: NSPoint(x: 130, y: 330))
+        title.draw(at: NSPoint(x: 540, y: 270))
 
         let subtitle = NSAttributedString(
-            string: "Search, preview, and reuse clipboard history from the menu bar.",
+            string: "Your clipboard, supercharged",
             attributes: [
-                .font: NSFont.systemFont(ofSize: 20, weight: .medium),
-                .foregroundColor: NSColor(calibratedWhite: 1, alpha: 0.84)
+                .font: NSFont.systemFont(ofSize: 22, weight: .medium),
+                .foregroundColor: NSColor(calibratedWhite: 1, alpha: 0.88)
             ]
         )
-        subtitle.draw(at: NSPoint(x: 130, y: 288))
+        subtitle.draw(at: NSPoint(x: 540, y: 220))
 
-        let badge = NSBezierPath(roundedRect: NSRect(x: 130, y: 210, width: 170, height: 40), xRadius: 20, yRadius: 20)
+        let badge = NSBezierPath(roundedRect: NSRect(x: 540, y: 158, width: 200, height: 34), xRadius: 17, yRadius: 17)
         NSColor(calibratedWhite: 1, alpha: 0.20).setFill()
         badge.fill()
 
         let badgeText = NSAttributedString(
-            string: "macOS Menu Bar App",
+            string: "macOS menu bar · MIT",
             attributes: [
-                .font: NSFont.systemFont(ofSize: 16, weight: .semibold),
+                .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
                 .foregroundColor: NSColor.white
             ]
         )
-        badgeText.draw(at: NSPoint(x: 155, y: 222))
+        badgeText.draw(at: NSPoint(x: 564, y: 168))
 
         image.unlockFocus()
 
@@ -259,8 +412,9 @@ struct ReadmeAssetRenderer {
         [
             .stub(
                 kind: .image,
-                title: "Product announcement visual",
+                title: "Hero illustration",
                 resourcePath: imageURL.path,
+                sourceAppBundleId: "com.apple.Photos",
                 isPinned: true,
                 metadata: ClipboardItemMetadata(
                     imageWidth: 960,
@@ -276,11 +430,12 @@ struct ReadmeAssetRenderer {
             ),
             .stub(
                 kind: .text,
-                title: "Swift onboarding snippet",
+                title: "Swift snippet",
                 contentText: """
                 let history = try await historyStore.recentItems(limit: 100)
                 visibleItems = history.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
                 """,
+                sourceAppBundleId: "com.apple.dt.Xcode",
                 metadata: ClipboardItemMetadata(
                     imageWidth: nil,
                     imageHeight: nil,
@@ -296,8 +451,9 @@ struct ReadmeAssetRenderer {
             ),
             .stub(
                 kind: .link,
-                title: "Release checklist",
-                contentText: "https://github.com/bloodstalk1/Clipo/releases/tag/v1.0.0",
+                title: "Release notes",
+                contentText: "https://github.com/bloodstalk1/Clipo/releases",
+                sourceAppBundleId: "com.apple.Safari",
                 metadata: ClipboardItemMetadata(
                     imageWidth: nil,
                     imageHeight: nil,
@@ -315,6 +471,7 @@ struct ReadmeAssetRenderer {
                 kind: .text,
                 title: "Standup note",
                 contentText: "Polished popup behavior, added retention policy, and packaged the first public DMG.",
+                sourceAppBundleId: "com.apple.Notes",
                 metadata: ClipboardItemMetadata(
                     imageWidth: nil,
                     imageHeight: nil,
@@ -331,56 +488,86 @@ struct ReadmeAssetRenderer {
         ]
     }
 
-    private static func makeSearchItems(imageURL: URL) -> [ClipboardItem] {
+    private static func makeCompactItems() -> [ClipboardItem] {
         [
             .stub(
                 kind: .text,
-                title: "Figma frame notes",
-                contentText: "Hero frame updated with the new Clipo launch copy and menu bar positioning notes.",
+                title: "Quick command",
+                contentText: "gh pr create --fill",
+                sourceAppBundleId: "com.apple.Terminal",
                 metadata: ClipboardItemMetadata(
-                    imageWidth: nil,
-                    imageHeight: nil,
-                    imageFileSize: nil,
-                    faviconURL: nil,
-                    detectedLanguage: nil,
-                    lineCount: nil,
+                    detectedLanguage: .shell,
+                    lineCount: 1,
+                    characterCount: 19
+                )
+            ),
+            .stub(
+                kind: .text,
+                title: "Hex color palette",
+                contentText: "#14B8A6  #0EA5E9  #F59E0B  #EF4444",
+                sourceAppBundleId: "com.apple.Notes",
+                metadata: ClipboardItemMetadata(
+                    detectedLanguage: .markdown,
+                    lineCount: 1,
+                    characterCount: 44
+                )
+            ),
+            .stub(
+                kind: .link,
+                title: "Linear changelog",
+                contentText: "https://linear.app/changelog/2024-12",
+                sourceAppBundleId: "com.apple.Safari",
+                metadata: ClipboardItemMetadata(
+                    characterCount: 43,
+                    wordCount: 2
+                )
+            ),
+            .stub(
+                kind: .text,
+                title: "Email draft",
+                contentText: "Following up on our conversation about the launch plan for next quarter.",
+                sourceAppBundleId: "com.apple.mail",
+                metadata: ClipboardItemMetadata(
                     characterCount: 84,
-                    wordCount: 14,
-                    fileSize: nil,
-                    fileExtension: nil
+                    wordCount: 14
+                )
+            )
+        ]
+    }
+
+    private static func makeFiltersItems(imageURL: URL) -> [ClipboardItem] {
+        [
+            .stub(
+                kind: .text,
+                title: "Image dimensions spec",
+                contentText: "1920×1080 cover image, 2x retina export, 600 KB max",
+                sourceAppBundleId: "com.apple.Notes",
+                metadata: ClipboardItemMetadata(
+                    characterCount: 60,
+                    wordCount: 12
                 )
             ),
             .stub(
                 kind: .image,
-                title: "Figma export preview",
+                title: "Screenshot from today",
                 resourcePath: imageURL.path,
+                sourceAppBundleId: "com.apple.screencapture",
                 metadata: ClipboardItemMetadata(
                     imageWidth: 960,
                     imageHeight: 540,
-                    imageFileSize: 180_000,
-                    detectedLanguage: nil,
-                    lineCount: nil,
-                    characterCount: nil,
-                    wordCount: nil,
-                    fileSize: nil,
-                    fileExtension: nil
+                    imageFileSize: 180_000
                 )
             ),
             .stub(
-                kind: .text,
-                title: "Figma component label",
-                contentText: "Clipo / Search Panel / Selected Image",
+                kind: .image,
+                title: "Reference photo",
+                resourcePath: imageURL.path,
+                sourceAppBundleId: "com.apple.Photos",
+                isPinned: true,
                 metadata: ClipboardItemMetadata(
-                    imageWidth: nil,
-                    imageHeight: nil,
-                    imageFileSize: nil,
-                    faviconURL: nil,
-                    detectedLanguage: nil,
-                    lineCount: nil,
-                    characterCount: 39,
-                    wordCount: 7,
-                    fileSize: nil,
-                    fileExtension: nil
+                    imageWidth: 960,
+                    imageHeight: 540,
+                    imageFileSize: 180_000
                 )
             )
         ]

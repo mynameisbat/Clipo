@@ -117,10 +117,20 @@ private final class MockClipboardHistoryStoreForPermissionTests: ClipboardHistor
     func delete(id: UUID) async throws {}
 
     func clearHistory() async throws {}
+
+    func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        try await recentItems(limit: limit)
+    }
+
+    func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        try await search(query: query)
+    }
 }
 
 private final class MockPasteServiceForPermissionTests: PasteService {
     func paste(_ item: ClipboardItem) async throws -> PasteResult {
         return .copiedOnly
     }
+
+    func copyAsPlainText(_ item: ClipboardItem) async throws {}
 }

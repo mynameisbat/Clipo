@@ -66,7 +66,7 @@ struct GPUAcceleratedGlassView: NSViewRepresentable {
             blurFilter.inputImage = image
             blurFilter.radius = 20.0
 
-            guard var blurred = blurFilter.outputImage else { return nil }
+            guard let blurred = blurFilter.outputImage else { return nil }
 
             // Color controls for saturation boost
             let colorFilter = CIFilter.colorControls()
@@ -75,7 +75,7 @@ struct GPUAcceleratedGlassView: NSViewRepresentable {
             colorFilter.brightness = 0.0
             colorFilter.contrast = 1.0
 
-            guard var saturated = colorFilter.outputImage else { return nil }
+            guard let saturated = colorFilter.outputImage else { return nil }
 
             // Add gradient overlay for depth
             let gradientFilter = CIFilter.linearGradient()

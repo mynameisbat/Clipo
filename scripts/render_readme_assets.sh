@@ -12,7 +12,15 @@ swiftc \
   -framework SwiftUI \
   "$repo_root/scripts/render_readme_assets.swift" \
   "$repo_root/Clipo/Features/Popup/ClipboardRowView.swift" \
+  "$repo_root/Clipo/Features/Popup/EmptyStateView.swift" \
+  "$repo_root/Clipo/Features/Popup/FilterChipStrip.swift" \
+  "$repo_root/Clipo/Features/Design/DesignTokens.swift" \
+  "$repo_root/Clipo/Features/Design/AnimationPresets.swift" \
+  "$repo_root/Clipo/Features/Design/LiquidGlassMaterial.swift" \
+  "$repo_root/Clipo/Features/Design/VisualEffectView.swift" \
+  "$repo_root/Clipo/Support/AppIconProvider.swift" \
   "$repo_root/Clipo/Models/ClipboardItem.swift" \
+  "$repo_root/Clipo/Features/History/HistoryFilter.swift" \
   -o "$build_dir/render-readme-assets"
 
 "$build_dir/render-readme-assets"

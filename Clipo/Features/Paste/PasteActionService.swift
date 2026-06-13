@@ -55,7 +55,7 @@ final class PasteActionService: PasteService, @unchecked Sendable {
 
     func paste(_ item: ClipboardItem) async throws -> PasteResult {
         try clipboardWriter.write(item: item)
-        await monitor.notifyItemPasted(item.id)
+        monitor.notifyItemPasted(item.id)
         guard permissions.isTrusted else { return .copiedOnly }
         await targetApplicationActivator.activatePreviousApp()
         let previousApplicationBundleIdentifier = await MainActor.run {
@@ -64,6 +64,28 @@ final class PasteActionService: PasteService, @unchecked Sendable {
         await sleep(Self.pasteDelayNanoseconds(for: previousApplicationBundleIdentifier))
         try autoPasteDriver.pasteCurrentClipboard()
         return .pasted
+    }
+
+    func copyAsPlainText(_ item: ClipboardItem) async throws {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let plain = plainTextContent(of: item)
+        pasteboard.setString(plain, forType: .string)
+        monitor.notifyItemPasted(item.id)
+    }
+
+    private func plainTextContent(of item: ClipboardItem) -> String {
+        switch item.kind {
+        case .text, .link:
+            return item.contentText ?? item.title
+        case .file:
+            if let path = item.resourcePath {
+                return URL(fileURLWithPath: path).absoluteString
+            }
+            return item.title
+        case .image:
+            return item.title
+        }
     }
 
     private static func pasteDelayNanoseconds(for bundleIdentifier: String?) -> UInt64 {
@@ -80,6 +102,29 @@ final class PasteActionService: PasteService, @unchecked Sendable {
 final class PreviousApplicationActivator: TargetApplicationActivating {
     private let currentBundleIdentifier = Bundle.main.bundleIdentifier
     private var previousApplication: NSRunningApplication?
+    nonisolated(unsafe) private var workspaceObserver: NSObjectProtocol?
+
+    init() {
+        workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
+                return
+            }
+            Task { @MainActor in
+                self.handleAppActivation(app)
+            }
+        }
+    }
+
+    deinit {
+        if let workspaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(workspaceObserver)
+        }
+    }
 
     var previousApplicationBundleIdentifier: String? {
         previousApplication?.bundleIdentifier
@@ -100,6 +145,11 @@ final class PreviousApplicationActivator: TargetApplicationActivating {
         NSApp.hide(nil)
         previousApplication?.unhide()
         previousApplication?.activate(options: [.activateAllWindows])
+    }
+
+    private func handleAppActivation(_ app: NSRunningApplication) {
+        guard app.bundleIdentifier != currentBundleIdentifier else { return }
+        previousApplication = app
     }
 }
 

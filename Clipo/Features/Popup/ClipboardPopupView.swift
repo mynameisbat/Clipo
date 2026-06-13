@@ -3,26 +3,32 @@ import SwiftUI
 
 struct ClipboardPopupView: View {
     private enum Appearance {
-        static let sectionCornerRadius: CGFloat = 14
-        static let rowCornerRadius: CGFloat = 16
+        static let panelWidth: CGFloat = 420
+        static let panelHeight: CGFloat = 520
+        static let toolbarHeight: CGFloat = 40
+        static let searchHeight: CGFloat = 44
+        static let filterStripHeight: CGFloat = 36
+        static let footerHeight: CGFloat = 32
+        static let controlSize: CGFloat = 28
     }
 
     @ObservedObject var viewModel: ClipboardPopupViewModel
     let style: ClipboardPopupStyle
     @State private var isShowingClearHistoryConfirmation = false
     @State private var showingSettings = false
-    @FocusState private var isSearchFocused: Bool
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
-    @AppStorage(ClipboardSoundPreference.enabledStorageKey) private var clipboardSoundEnabled = true
-    @AppStorage(ClipboardSoundPreference.nameStorageKey) private var clipboardSoundNameRawValue = ClipboardSoundName.glass.rawValue
     @State private var isVisible = false
+    @AppStorage("clipo.compactMode") private var isCompactMode = false
+    @AppStorage("clipo.paused") private var isPaused = false
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         Group {
             if showingSettings {
-                settingsView
+                SettingsView(viewModel: viewModel)
+                    .transition(.opacity)
             } else {
                 mainViewWithToast
+                    .transition(.opacity)
             }
         }
         .background(panelBackground)
@@ -33,6 +39,9 @@ struct ClipboardPopupView: View {
         .onAppear {
             isVisible = true
         }
+        .onChange(of: isPaused) { newValue in
+            AppEnvironment.shared?.setMonitoringPaused(newValue)
+        }
     }
 
     private var mainViewWithToast: some View {
@@ -41,7 +50,7 @@ struct ClipboardPopupView: View {
 
             if let toast = viewModel.toastManagerForView.currentToast {
                 ToastView(toast: toast)
-                    .padding(.top, 16)
+                    .padding(.top, 12)
                     .transition(ToastView.slideInTransition)
                     .zIndex(1)
                     .accessibilityElement(children: .contain)
@@ -53,19 +62,22 @@ struct ClipboardPopupView: View {
 
     private var mainView: some View {
         ZStack {
-            VStack(spacing: 14) {
-                headerView
+            VStack(spacing: 0) {
+                toolbar
+                searchField
+                FilterChipStrip(activeFilters: $viewModel.activeFilters)
+                    .frame(height: Appearance.filterStripHeight)
+                    .background(DT.Color.stroke.opacity(0.20))
 
                 if !viewModel.isAccessibilityTrusted {
                     permissionBanner
                 }
 
-                listContainer
+                list
 
                 footerActions
             }
-            .padding(14)
-            .frame(width: 420, height: 500)
+            .frame(width: Appearance.panelWidth, height: Appearance.panelHeight)
 
             KeyboardEventHandlingView { eventData async in
                 let shouldFocusSearch = await KeyboardNavigationHandler.handleKeyEvent(
@@ -99,83 +111,121 @@ struct ClipboardPopupView: View {
         }
     }
 
-    private var headerView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Clipo")
-                        .font(.system(size: 15, weight: .semibold))
+    private var toolbar: some View {
+        HStack(spacing: DT.Spacing.s) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Clipo")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(DT.Color.textPrimary)
 
-                    Text(summaryText)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                Text(summaryText)
+                    .font(.system(size: 10))
+                    .foregroundColor(DT.Color.textSecondary)
+            }
+
+            Spacer(minLength: DT.Spacing.xs)
+
+            if let shortcut = ShortcutName.togglePopup.shortcut {
+                Text(shortcutLabel(for: shortcut))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundColor(DT.Color.textSecondary)
+                    .padding(.horizontal, DT.Spacing.xs)
+                    .padding(.vertical, 4)
+                    .background(controlBackground)
+                    .clipShape(Capsule())
+            }
+
+            compactToggle
+
+            settingsButton
+        }
+        .padding(.horizontal, DT.Spacing.m)
+        .frame(height: Appearance.toolbarHeight)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DT.Color.stroke)
+                .frame(height: 1)
+        }
+    }
+
+    private var compactToggle: some View {
+        Button {
+            isCompactMode.toggle()
+        } label: {
+            Image(systemName: isCompactMode ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(DT.Color.textSecondary)
+                .frame(width: Appearance.controlSize, height: Appearance.controlSize)
+                .background(controlBackground)
+                .clipShape(RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(isCompactMode ? "Show previews" : "Hide previews")
+    }
+
+    private var settingsButton: some View {
+        Button {
+            withAnimation(.quickFeedback) {
+                showingSettings = true
+            }
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(DT.Color.textSecondary)
+                .frame(width: Appearance.controlSize, height: Appearance.controlSize)
+                .background(controlBackground)
+                .clipShape(RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Settings")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: DT.Spacing.s) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(DT.Color.textSecondary)
+
+            TextField("Search clipboard...", text: $viewModel.searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundColor(DT.Color.textPrimary)
+                .focused($isSearchFocused)
+                .onSubmit { Task { await viewModel.applySearch() } }
+                .onChange(of: viewModel.searchText) { _ in
+                    Task { await viewModel.applySearch() }
                 }
 
-                Spacer()
-
+            if !viewModel.searchText.isEmpty {
                 Button {
-                    showingSettings = true
+                    viewModel.searchText = ""
                 } label: {
-                    Image(systemName: "gearshape")
-                        .frame(width: 28, height: 28)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(DT.Color.textSecondary)
                 }
                 .buttonStyle(.plain)
-                .background(controlBackgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            HStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-
-                    TextField("Search clipboard...", text: $viewModel.searchText)
-                        .textFieldStyle(.plain)
-                        .focused($isSearchFocused)
-                        .onSubmit { Task { await viewModel.applySearch() } }
-                        .onChange(of: viewModel.searchText) { _ in
-                            Task { await viewModel.applySearch() }
-                        }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(searchBackgroundColor)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(searchBorderColor, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                if let shortcut = ShortcutName.togglePopup.shortcut {
-                    Text(shortcutLabel(for: shortcut))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 5)
-                        .background(controlBackgroundColor)
-                        .clipShape(Capsule())
-                }
             }
         }
-        .padding(12)
-        .background(headerBackgroundColor)
-        .overlay(headerOverlay)
-        .clipShape(RoundedRectangle(cornerRadius: Appearance.sectionCornerRadius, style: .continuous))
+        .padding(.horizontal, DT.Spacing.m)
+        .frame(height: Appearance.searchHeight)
+        .background(DT.Color.stroke.opacity(0.4))
     }
 
     private var permissionBanner: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: DT.Spacing.s) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.yellow)
+                .font(.system(size: 12))
+                .foregroundColor(DT.Color.warning)
                 .frame(width: 18)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Auto-paste needs Accessibility access")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(DT.Color.textPrimary)
                 Text("Enable to paste back into other apps.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundColor(DT.Color.textSecondary)
             }
 
             Spacer()
@@ -186,224 +236,126 @@ struct ClipboardPopupView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
         }
-        .padding(12)
-        .background(Color.yellow.opacity(0.12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.yellow.opacity(0.18), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, DT.Spacing.m)
+        .padding(.vertical, DT.Spacing.s)
+        .background(DT.Color.warning.opacity(0.10))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DT.Color.stroke)
+                .frame(height: 1)
+        }
     }
 
-    private var listContainer: some View {
+    private var list: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: DT.Spacing.s) {
                     if viewModel.visibleItems.isEmpty {
-                        emptyState
+                        EmptyStateView(searchText: viewModel.searchText)
                     } else {
                         ForEach(Array(viewModel.visibleItems.enumerated()), id: \.element.id) { index, item in
-                            HStack(alignment: .top, spacing: 8) {
+                            HStack(alignment: .top, spacing: DT.Spacing.xs) {
                                 Button {
                                     Task { await viewModel.activateItem(at: index) }
                                 } label: {
                                     ClipboardRowView(
                                         item: item,
                                         isSelected: index == viewModel.selectedIndex,
-                                        style: style
+                                        isCompact: isCompactMode,
+                                        style: style,
+                                        quickPasteHint: quickPasteHint(for: index),
+                                        onTogglePin: { Task { await viewModel.togglePinned(at: index) } },
+                                        onDelete: { Task { await viewModel.deleteItem(at: index) } },
+                                        onCopyAsPlainText: { Task { await viewModel.copyAsPlainText(at: index) } }
                                     )
                                 }
                                 .buttonStyle(.plain)
 
-                                Button {
-                                    Task { await viewModel.deleteItem(at: index) }
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .frame(width: 30, height: 30)
+                                if !isCompactMode {
+                                    Button {
+                                        Task { await viewModel.deleteItem(at: index) }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(DT.Color.textSecondary)
+                                            .frame(width: Appearance.controlSize, height: Appearance.controlSize)
+                                            .background(controlBackground)
+                                            .clipShape(RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Delete")
                                 }
-                                .buttonStyle(.plain)
-                                .foregroundColor(.secondary)
-                                .background(Color.primary.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                             .id(item.id)
                         }
                     }
                 }
-                .padding(12)
+                .padding(DT.Spacing.m)
             }
             .onChange(of: viewModel.selectedIndex) { newIndex in
                 guard viewModel.visibleItems.indices.contains(newIndex) else { return }
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(.smoothSlide) {
                     proxy.scrollTo(viewModel.visibleItems[newIndex].id, anchor: .center)
                 }
             }
         }
-        .background(listBackgroundColor)
-        .overlay(
-            RoundedRectangle(cornerRadius: Appearance.rowCornerRadius, style: .continuous)
-                .stroke(listBorderColor, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: Appearance.rowCornerRadius, style: .continuous))
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "doc.on.clipboard")
-                .font(.system(size: 22, weight: .medium))
-                .foregroundColor(.secondary)
-
-            Text(viewModel.searchText.isEmpty ? "Clipboard history is empty" : "No results found")
-                .font(.subheadline.weight(.medium))
-
-            Text(viewModel.searchText.isEmpty ? "Copy something to see it here." : "Try a different keyword.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var footerActions: some View {
-        HStack(spacing: 10) {
-            Button("Clear History") {
-                isShowingClearHistoryConfirmation = true
+        HStack(spacing: DT.Spacing.s) {
+            Button {
+                isPaused.toggle()
+            } label: {
+                Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(isPaused ? DT.Color.warning : DT.Color.textSecondary)
+                    .frame(width: Appearance.controlSize, height: Appearance.controlSize)
+                    .background(controlBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous))
+                    .overlay(
+                        Circle()
+                            .fill(isPaused ? DT.Color.warning : Color.clear)
+                            .frame(width: 6, height: 6)
+                            .offset(x: 8, y: -8)
+                    )
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .help(isPaused ? "Resume history (⌘T)" : "Pause history (⌘T)")
 
             Spacer()
 
-            Button("Quit") {
-                viewModel.quitApp()
+            Button {
+                isShowingClearHistoryConfirmation = true
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(DT.Color.textSecondary)
+                    .frame(width: Appearance.controlSize, height: Appearance.controlSize)
+                    .background(controlBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous))
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .help("Clear non-pinned history")
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, DT.Spacing.m)
+        .frame(height: Appearance.footerHeight)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(DT.Color.stroke)
+                .frame(height: 1)
+        }
     }
 
-    private var settingsView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ZStack {
-                Text("Settings")
-                    .font(.headline)
-
-                HStack {
-                    Button {
-                        showingSettings = false
-                    } label: {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
-                    }
-                    .buttonStyle(.borderless)
-
-                    Spacer()
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("General")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Toggle("Launch at login", isOn: $launchAtLogin)
-                            .onChange(of: launchAtLogin) { newValue in
-                                AutoLaunchService.shared.setEnabled(newValue)
-                            }
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Permissions")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Label(
-                            viewModel.isAccessibilityTrusted ? "Accessibility enabled" : "Accessibility disabled",
-                            systemImage: viewModel.isAccessibilityTrusted ? "checkmark.shield" : "exclamationmark.triangle"
-                        )
-                        .foregroundColor(viewModel.isAccessibilityTrusted ? .green : .orange)
-
-                        if !viewModel.isAccessibilityTrusted {
-                            Button("Open Accessibility Settings") {
-                                viewModel.openAccessibilitySettings()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Shortcuts")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        KeyboardShortcuts.Recorder("Toggle Clipo", name: ShortcutName.togglePopup)
-                        KeyboardShortcuts.Recorder("Open paste picker", name: ShortcutName.openPastePicker)
-                        KeyboardShortcuts.Recorder("Screen extension toggle", name: ShortcutName.screenExtensionTogglePopup)
-                        KeyboardShortcuts.Recorder("Screen extension paste picker", name: ShortcutName.screenExtensionOpenPastePicker)
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("History")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Picker("Auto-delete after", selection: $viewModel.historyRetentionPolicy) {
-                            ForEach(HistoryRetentionPolicy.allCases, id: \.rawValue) { policy in
-                                Text(policy.title).tag(policy)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        Text("Pinned items are kept and are not auto-deleted.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Clipboard sound")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Toggle("Play sound on copy", isOn: $clipboardSoundEnabled)
-
-                        Picker("Sound", selection: selectedClipboardSound) {
-                            ForEach(ClipboardSoundName.allCases, id: \.rawValue) { sound in
-                                Text(sound.title).tag(sound)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .disabled(!clipboardSoundEnabled)
-                    }
-
-                    HStack {
-                        Spacer()
-                        Text("Clipo v2.0.0")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-        }
-        .frame(width: 420, height: 500)
-    }
-
-    private var selectedClipboardSound: Binding<ClipboardSoundName> {
-        Binding(
-            get: { ClipboardSoundName(rawValue: clipboardSoundNameRawValue) ?? .glass },
-            set: { clipboardSoundNameRawValue = $0.rawValue }
-        )
+    private func quickPasteHint(for index: Int) -> String? {
+        guard index < 9 else { return nil }
+        return "⌘\(index + 1)"
     }
 
     private var summaryText: String {
-        "\(viewModel.visibleItems.count) item\(viewModel.visibleItems.count == 1 ? "" : "s") ready"
+        let count = viewModel.visibleItems.count
+        let pausedSuffix = isPaused ? " · paused" : ""
+        return "\(count) item\(count == 1 ? "" : "s")\(pausedSuffix)"
     }
 
     private func shortcutLabel(for shortcut: KeyboardShortcuts.Shortcut) -> String {
@@ -419,40 +371,8 @@ struct ClipboardPopupView: View {
         }
     }
 
-    private var headerBackgroundColor: Color {
-        style == .anchoredToMenuBar ? Color.clear : Color.white.opacity(0.08)
-    }
-
-    @ViewBuilder
-    private var headerOverlay: some View {
-        if style == .anchoredToMenuBar {
-            Rectangle()
-                .fill(Color.white.opacity(0.10))
-                .frame(height: 1)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-        } else {
-            RoundedRectangle(cornerRadius: Appearance.sectionCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        }
-    }
-
-    private var controlBackgroundColor: Color {
-        style == .anchoredToMenuBar ? Color.black.opacity(0.06) : Color.primary.opacity(0.06)
-    }
-
-    private var searchBackgroundColor: Color {
-        style == .anchoredToMenuBar ? Color.black.opacity(0.05) : Color.primary.opacity(0.05)
-    }
-
-    private var searchBorderColor: Color {
-        style == .anchoredToMenuBar ? Color.black.opacity(0.08) : Color.white.opacity(0.08)
-    }
-
-    private var listBackgroundColor: Color {
-        style == .anchoredToMenuBar ? Color.black.opacity(0.04) : Color.black.opacity(0.08)
-    }
-
-    private var listBorderColor: Color {
-        style == .anchoredToMenuBar ? Color.black.opacity(0.08) : Color.white.opacity(0.06)
+    private var controlBackground: some View {
+        RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous)
+            .fill(style == .anchoredToMenuBar ? Color.black.opacity(0.06) : Color.primary.opacity(0.06))
     }
 }

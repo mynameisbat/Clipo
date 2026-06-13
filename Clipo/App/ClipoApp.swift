@@ -6,8 +6,7 @@ struct ClipoApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView()
-                .environmentObject(appDelegate.environment)
+            SettingsView(viewModel: nil)
                 .frame(width: 420, height: 360)
         }
     }

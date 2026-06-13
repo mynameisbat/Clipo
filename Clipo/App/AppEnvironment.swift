@@ -2,8 +2,11 @@ import AppKit
 import Foundation
 import SwiftUI
 
+@MainActor
 final class AppEnvironment: ObservableObject {
-    private static let clipboardFingerprintStore = ClipboardFingerprintStore()
+    nonisolated(unsafe) static weak var shared: AppEnvironment?
+
+    nonisolated private static let clipboardFingerprintStore = ClipboardFingerprintStore()
     let historyStore: ClipboardHistoryStore
     let payloadReader: PasteboardPayloadReader
     let permissions: AccessibilityPermissionService
@@ -82,6 +85,32 @@ final class AppEnvironment: ObservableObject {
         Task {
             await adaptiveMonitorRef.notifyPopupClosed()
         }
+    }
+
+    func setMonitoringPaused(_ paused: Bool) {
+        UserDefaults.standard.set(paused, forKey: "clipo.paused")
+        let adaptiveMonitorRef = adaptiveMonitor
+        Task {
+            await adaptiveMonitorRef.setPaused(paused)
+        }
+    }
+
+    func quickPaste(at index: Int) async {
+        guard index >= 1, index <= 9 else { return }
+        let historyStoreRef = historyStore
+        let writer = SystemClipboardWriter()
+        do {
+            let items = try await historyStoreRef.recentItems(limit: 9)
+            guard items.indices.contains(index - 1) else { return }
+            try writer.write(item: items[index - 1])
+        } catch {
+            return
+        }
+    }
+
+    func toggleMonitoringPaused() {
+        let current = UserDefaults.standard.bool(forKey: "clipo.paused")
+        setMonitoringPaused(!current)
     }
 }
 

@@ -44,6 +44,17 @@ final class InMemoryClipboardHistoryStore: ClipboardHistoryLoading, @unchecked S
     func clearHistory() async throws {
         items.removeAll { !$0.isPinned }
     }
+
+    func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        Array(items.prefix(limit))
+    }
+
+    func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        items.filter { item in
+            item.title.localizedCaseInsensitiveContains(query) ||
+            (item.contentText?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+    }
 }
 
 final class MockPasteService: PasteService, @unchecked Sendable {
@@ -64,4 +75,6 @@ final class MockPasteService: PasteService, @unchecked Sendable {
         _lastPastedItem = item
         return resultToReturn
     }
+
+    func copyAsPlainText(_ item: ClipboardItem) async throws {}
 }
