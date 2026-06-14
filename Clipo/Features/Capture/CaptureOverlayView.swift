@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct CaptureOverlayView: View {
     let screen: NSScreen
@@ -16,6 +17,7 @@ struct CaptureOverlayView: View {
     @State private var isSelected = false
     @State private var includeMic = false
     @State private var includeSystemAudio = false
+    @State private var permissionDeniedMessage: String? = nil
 
     private var screenFrame: CGRect {
         screen.frame
@@ -145,7 +147,7 @@ struct CaptureOverlayView: View {
                 if isSelected, let selection = currentSelectionRect {
                     HStack(spacing: 14) {
                         Button {
-                            onRecordStart(selection, includeMic, includeSystemAudio)
+                            requestPermissionsThenRecord(selection: selection)
                         } label: {
                             HStack(spacing: 6) {
                                 Circle()
@@ -315,7 +317,41 @@ struct CaptureOverlayView: View {
             height: rect.size.height
         )
     }
+
+    /// Requests microphone permission (if toggled on) then starts recording.
+    /// This prevents TCC crashes from accessing AVCaptureDevice without authorization.
+    private func requestPermissionsThenRecord(selection: CGRect) {
+        guard includeMic else {
+            // No mic needed — start immediately
+            onRecordStart(selection, false, includeSystemAudio)
+            return
+        }
+
+        let currentStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch currentStatus {
+        case .authorized:
+            onRecordStart(selection, true, includeSystemAudio)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        onRecordStart(selection, true, includeSystemAudio)
+                    } else {
+                        permissionDeniedMessage = "Microphone access was denied. Recording without microphone."
+                        onRecordStart(selection, false, includeSystemAudio)
+                    }
+                }
+            }
+        case .denied, .restricted:
+            // Fall back gracefully — record without microphone
+            permissionDeniedMessage = "Microphone access is denied in System Settings. Recording without microphone."
+            onRecordStart(selection, false, includeSystemAudio)
+        @unknown default:
+            onRecordStart(selection, false, includeSystemAudio)
+        }
+    }
 }
+
 
 // MARK: - Masks and Shapes
 

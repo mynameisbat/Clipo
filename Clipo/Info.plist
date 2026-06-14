@@ -24,5 +24,9 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Clipo cần truy cập microphone để ghi âm cùng với video màn hình.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Clipo cần quyền chụp màn hình để chụp ảnh và quay video màn hình.</string>
 </dict>
 </plist>
