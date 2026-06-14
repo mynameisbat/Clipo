@@ -1,178 +1,239 @@
-# Clipo / Clipo
+<div align="center">
 
-**A lightweight clipboard manager for macOS.**<br>
-*Trình quản lý clipboard gọn nhẹ cho macOS.*
+<img src="Clipo/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128.png" width="96" alt="Clipo icon" />
 
-![macOS](https://img.shields.io/badge/macOS-13%2B-blue) ![Swift](https://img.shields.io/badge/Swift-6.0-orange) ![License](https://img.shields.io/badge/License-MIT-green) ![Status](https://img.shields.io/badge/Status-2.1%20UI%20Refresh-teal)
+# Clipo
 
-| [English](#english) | [Tiếng Việt](#tiếng-việt) |
-| --- | --- |
+**The clipboard manager macOS deserves.**
+
+[![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black?style=flat-square&logo=apple)](https://www.apple.com/macos/)
+[![Swift 6](https://img.shields.io/badge/Swift-6.0-orange?style=flat-square&logo=swift)](https://swift.org)
+[![Version](https://img.shields.io/badge/version-3.0.0-blueviolet?style=flat-square)](https://github.com/mynameisbat/Clipo/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+[**Download v3.0.0**](https://github.com/mynameisbat/Clipo/releases/latest) · [English](#english) · [Tiếng Việt](#tiếng-việt)
+
+</div>
 
 ---
 
 ## English
 
-Clipo lives in the menu bar, keeps a searchable clipboard history, previews images inline, and lets you paste previous items back into the app you were using.
+Clipo lives quietly in your menu bar and keeps every text, image, link, and file you've ever copied — searchable, filterable, and ready to paste in one keystroke.
 
-### Preview
+### What's new in v3.0.0
 
-![Clipo overview](docs/assets/clipo-overview.png)
-*Default popup with mixed content — image pinned, code snippet, link, and text.*
+| | Feature | Description |
+|---|---|---|
+| 📸 | **Screen Capture & Editor** | Capture any area or window, annotate, redact, and export — no third-party app needed |
+| 🎬 | **Screen Recording** | Record screen regions with system audio + mic, trim, and export to MP4 or GIF |
+| 🔔 | **Auto Update Checker** | Silent background update detection with one-click download via GitHub Releases |
 
-<p align="center">
-  <img src="docs/assets/clipo-compact.png" alt="Compact mode" width="49%" />
-  <img src="docs/assets/clipo-filters.png" alt="Filter chips" width="49%" />
-</p>
-<em>Left: compact mode for scanning many items. Right: inline filter chips (Images active).</em>
+---
 
-### Workflow
+### Features
 
-![Clipo workflow](docs/assets/clipo-workflow.gif)
-*Search-as-you-type, then filter the narrowed set with a single tap.*
+#### 📋 Clipboard History
 
-### Highlights
+| Feature | Description |
+|---|---|
+| **Menu bar app** | No Dock icon — always at your fingertips. Open with `⌘⇧V` |
+| **Visual timeline** | Every item shows preview, source app icon, timestamp, and kind |
+| **Filter chips** | Filter by Text / Image / Link / File, Pinned, or custom Pinboards |
+| **Full-text search** | SQLite FTS5 — prefix match, phrase match, sub-50ms results |
+| **Pin items** | Protect from auto-delete and surface important items instantly |
+| **Pinboards** | Create named collections (e.g. *Emails*, *Code*, *Templates*) |
+| **Quick Paste `⌘1–9`** | Grab the Nth most recent item without opening the popup |
+| **Auto-paste** | One Accessibility grant lets Clipo paste directly into your last active app |
+| **Pause toggle** | Stop recording history with one tap when handling sensitive data |
+| **History retention** | Auto-delete after 7 / 14 / 30 / 90 days, or keep forever |
+| **Backup & Restore** | Export/import full history archive (`.clipobackup`) |
 
-| Feature | What it does |
-| --- | --- |
-| **Menu bar app** | No Dock icon. Opens with `⌘⇧V` or click the menu bar item. |
-| **Visual timeline** | Each card shows a preview, source app, time, and quick metadata. |
-| **Filter chips** | Filter by kind (text / image / link / file), pinned, or date. |
-| **Quick Paste `⌘1..9`** | Copies the Nth most recent item to your clipboard — paste manually. |
-| **Pause toggle `⌘T`** | Stop collecting history when handling sensitive content. |
-| **Pin items** | Pinned items are protected from auto-delete and surface with a teal accent. |
-| **Software Updates** | Auto-checks for new releases from GitHub on startup and supports manual check in Settings. |
-| **Search** | Full-text search powered by SQLite FTS5 with a 5-minute cache. |
-| **Accessibility auto-paste** | One-time grant; Clipo can paste back into your previous app. |
+#### 📸 Screen Capture & Editor
+
+| Feature | Description |
+|---|---|
+| **Area & window capture** | Drag to select or hover a window to auto-snap |
+| **Pixel-level magnifier** | Zoom loupe near cursor for pixel-perfect selection |
+| **Canvas backdrops** | Sunrise, Sunset, Aurora, Ocean, Glass gradient presets |
+| **Canvas controls** | Adjustable padding, corner radius, and drop shadow |
+| **Annotation tools** | Draw arrows, rectangles, freehand lines in any color |
+| **Blur & Blackout** | Redact passwords and sensitive content before sharing |
+| **OCR** | Extract text from any screenshot using macOS Vision |
+| **Copy or Save** | Copy to clipboard or save as PNG in one click |
+
+#### 🎬 Screen Recording
+
+| Feature | Description |
+|---|---|
+| **Region recording** | Record any selected screen area |
+| **System audio** | Capture system audio via ScreenCaptureKit |
+| **Microphone** | Optional mic recording alongside system audio |
+| **Video trimming** | Trim start/end directly in the preview window |
+| **MP4 export** | Save as high-quality MP4 |
+| **GIF export** | Convert to animated GIF with configurable FPS and scale |
+| **FPS settings** | 24 / 30 / 60 fps video capture (Settings → General) |
+
+---
 
 ### Install
 
-**Download a release**
+**Download the DMG (recommended)**
 
-1. Open [Releases](https://github.com/bloodstalk1/Clipo/releases)
-2. Download the latest `.dmg`
-3. Open the DMG and drag `Clipo.app` into `Applications`
+1. Go to [**Releases**](https://github.com/mynameisbat/Clipo/releases/latest)
+2. Download `Clipo-v3.0.0.dmg`
+3. Open the DMG and drag `Clipo.app` into **Applications**
+4. Launch Clipo — it will appear in your menu bar
 
 **Build from source**
 
 ```bash
-git clone https://github.com/bloodstalk1/Clipo.git
-cd clipo
+git clone https://github.com/mynameisbat/Clipo.git
+cd Clipo
 xcodegen generate
 open Clipo.xcodeproj
+# Press ⌘R in Xcode
 ```
 
-Run with `⌘R` in Xcode.
-
-**Package a DMG**
+**Package a DMG yourself**
 
 ```bash
 xcodegen generate
 ./scripts/package_dmg.sh
 ```
 
-### Usage
+---
 
-1. Open Clipo with `⌘⇧V` or click the menu bar icon
-2. Search or browse the history — type to filter, or tap a chip below the search field
-3. Press `Enter` to paste the highlighted item, or click any row
-4. Hold `⌘` and press a number (`⌘1`..`⌘9`) to grab the Nth recent item
-5. Press `⌘T` to pause history collection when copying passwords or sensitive data
-6. Right-click any row for **Pin / Unpin**, **Copy as Plain Text**, **Delete**
-7. Use the footer pause button to resume history collection
+### Permissions
+
+| Permission | Required for | Without it |
+|---|---|---|
+| **Accessibility** | Auto-paste into previous app | Copies to clipboard — paste manually with `⌘V` |
+| **Screen Recording** | Screen capture & recording | Feature unavailable |
+| **Microphone** | Recording with mic audio | Records without mic (system audio still works) |
+
+To grant Screen Recording: **System Settings → Privacy & Security → Screen & System Audio Recording → Clipo ✓**
+
+---
 
 ### Keyboard shortcuts
 
 | Shortcut | Action |
-| --- | --- |
-| `⌘⇧V` | Toggle the clipboard popup |
-| `⌃⌥V` | Open paste picker (screen extension) |
+|---|---|
+| `⌘⇧V` | Toggle clipboard popup |
+| `⌃⌥V` | Open paste picker |
+| `⌘⌥S` | Capture screen (default) |
+| `⌘⌥R` | Start screen recording (default) |
 | `↑` / `↓` | Navigate items |
 | `⌘↑` / `⌘↓` | Jump to top / bottom |
-| `Enter` | Paste the selected item |
-| `⌘1`..`⌘9` | Quick paste (1st–9th most recent item) |
-| `⌘P` | Pin / unpin the selected item |
-| `⌘T` | Pause / resume history collection |
-| `⌘F` | Focus the search field |
-| `Esc` | Clear search, then close popup |
+| `Enter` | Paste selected item |
+| `⌘1`–`⌘9` | Quick paste (Nth most recent) |
+| `⌘P` | Pin / unpin selected item |
+| `⌘T` | Pause / resume history |
+| `⌘F` | Focus search field |
+| `Esc` | Clear search, then close |
 
-All shortcuts except navigation can be reassigned in **Settings → Shortcuts**.
+All shortcuts are customisable in **Settings → Shortcuts**.
 
-### Permissions
-
-Clipo needs **Accessibility** permission only for auto-paste. Without it, Clipo still stores history and restores items to the clipboard so you can paste manually with `⌘V`.
-
-1. Open Clipo and click the yellow banner in the popup (or **Settings → Privacy**)
-2. Enable Clipo in **System Settings → Privacy & Security → Accessibility**
+---
 
 ### Requirements
 
-- macOS 13 or later
+- macOS 13 Ventura or later
 - Apple Silicon or Intel Mac
+- ~15 MB disk space
 
 ### Tech stack
 
-| Layer | What we use |
-| --- | --- |
-| Language | Swift 6 with strict concurrency |
-| UI | SwiftUI + AppKit hybrid (NSVisualEffectView material for the popup) |
-| Persistence | GRDB.swift + SQLite FTS5 for full-text search |
-| Hotkeys | KeyboardShortcuts (global hotkey registration) |
+| Layer | Technology |
+|---|---|
+| Language | Swift 6 — strict concurrency, actors, `Sendable` |
+| UI | SwiftUI + AppKit hybrid, `NSVisualEffectView` glass |
+| Persistence | GRDB.swift + SQLite FTS5 full-text search |
+| Screen Capture | AVFoundation + ScreenCaptureKit |
+| OCR | Vision framework |
+| Hotkeys | KeyboardShortcuts |
 | Project | XcodeGen |
 
 ---
 
 ## Tiếng Việt
 
-Clipo chạy trong thanh menu bar, lưu giữ lịch sử clipboard có thể tìm kiếm, xem trước ảnh trực tiếp, và cho phép dán lại các mục trước đó vào app bạn đang dùng.
+Clipo chạy âm thầm trong menu bar và lưu lại mọi thứ bạn đã copy — văn bản, ảnh, link, file — có thể tìm kiếm, lọc, và dán lại chỉ với một phím tắt.
 
-### Xem trước
+### Tính năng mới trong v3.0.0
 
-![Clipo tổng quan](docs/assets/clipo-overview.png)
-*Popup mặc định với nội dung hỗn hợp — ảnh đã ghim, đoạn code, link, và văn bản.*
+| | Tính năng | Mô tả |
+|---|---|---|
+| 📸 | **Chụp màn hình & Trình chỉnh sửa** | Chụp bất kỳ vùng hay cửa sổ nào, thêm chú thích, che phủ nội dung nhạy cảm, và xuất ảnh |
+| 🎬 | **Quay màn hình** | Quay video vùng màn hình với âm thanh hệ thống + mic, cắt video, xuất MP4 hoặc GIF |
+| 🔔 | **Tự động kiểm tra cập nhật** | Kiểm tra bản mới tự động khi khởi động, tải về chỉ một click qua GitHub Releases |
 
-<p align="center">
-  <img src="docs/assets/clipo-compact.png" alt="Chế độ compact" width="49%" />
-  <img src="docs/assets/clipo-filters.png" alt="Chip bộ lọc" width="49%" />
-</p>
-<em>Trái: chế độ compact để quét nhiều mục. Phải: chip bộ lọc trực tiếp (Images đang bật).</em>
+---
 
-### Quy trình sử dụng
+### Tính năng đầy đủ
 
-![Quy trình Clipo](docs/assets/clipo-workflow.gif)
-*Gõ để tìm kiếm, sau đó lọc kết quả bằng một chạm.*
-
-### Tính năng chính
+#### 📋 Lịch sử Clipboard
 
 | Tính năng | Mô tả |
-| --- | --- |
-| **Menu bar app** | Không có icon trên Dock. Mở bằng `⌘⇧V` hoặc click biểu tượng menu bar. |
-| **Dòng thời gian trực quan** | Mỗi thẻ hiển thị bản xem trước, app nguồn, thời gian, metadata nhanh. |
-| **Chip bộ lọc** | Lọc theo loại (văn bản / ảnh / link / file), đã ghim, hoặc ngày. |
-| **Quick Paste `⌘1..9`** | Sao chép mục gần nhất thứ N vào clipboard — bạn tự dán. |
-| **Tạm dừng `⌘T`** | Ngừng thu thập lịch sử khi xử lý nội dung nhạy cảm. |
-| **Ghim mục** | Mục đã ghim được bảo vệ khỏi xóa tự động và hiển thị viền teal. |
-| **Cập nhật phần mềm** | Tự động kiểm tra bản phát hành mới từ GitHub khi khởi động và hỗ trợ kiểm tra thủ công trong Settings. |
-| **Tìm kiếm** | Full-text search qua SQLite FTS5 với cache 5 phút. |
-| **Auto-paste qua Accessibility** | Cấp quyền một lần; Clipo có thể dán vào app trước đó. |
+|---|---|
+| **Menu bar app** | Không có icon Dock — luôn sẵn trong tầm tay. Mở bằng `⌘⇧V` |
+| **Dòng thời gian trực quan** | Mỗi mục hiện preview, icon app nguồn, thời gian, và loại nội dung |
+| **Chip bộ lọc** | Lọc theo Văn bản / Ảnh / Link / File, Đã ghim, hoặc Pinboard tùy chỉnh |
+| **Tìm kiếm toàn văn** | SQLite FTS5 — tìm theo tiền tố, cụm từ, kết quả dưới 50ms |
+| **Ghim mục** | Bảo vệ khỏi xóa tự động, hiển thị ưu tiên |
+| **Pinboards** | Tạo bộ sưu tập tên tuỳ ý (vd: *Email*, *Code*, *Mẫu*) |
+| **Quick Paste `⌘1–9`** | Lấy mục gần nhất thứ N mà không cần mở popup |
+| **Auto-paste** | Cấp quyền Accessibility một lần — Clipo tự dán vào app trước đó |
+| **Tạm dừng** | Ngừng ghi lịch sử khi xử lý dữ liệu nhạy cảm |
+| **Tự động xóa** | Sau 7 / 14 / 30 / 90 ngày, hoặc giữ mãi mãi |
+| **Sao lưu & Khôi phục** | Xuất/nhập toàn bộ lịch sử dưới dạng `.clipobackup` |
+
+#### 📸 Chụp màn hình & Trình chỉnh sửa
+
+| Tính năng | Mô tả |
+|---|---|
+| **Chụp vùng & cửa sổ** | Kéo để chọn vùng hoặc di chuột qua cửa sổ để tự động snap |
+| **Kính lúp pixel** | Phóng to tại con trỏ để chọn vùng chính xác đến pixel |
+| **Nền Canvas** | Preset gradient: Sunrise, Sunset, Aurora, Ocean, Glass |
+| **Điều chỉnh canvas** | Padding, bo góc, và bóng đổ tuỳ chỉnh |
+| **Công cụ chú thích** | Vẽ mũi tên, hình chữ nhật, nét tự do với nhiều màu |
+| **Blur & Blackout** | Che mờ mật khẩu và nội dung nhạy cảm trước khi chia sẻ |
+| **OCR** | Trích xuất văn bản từ ảnh chụp màn hình bằng macOS Vision |
+| **Sao chép hoặc Lưu** | Copy vào clipboard hoặc lưu PNG chỉ một click |
+
+#### 🎬 Quay màn hình
+
+| Tính năng | Mô tả |
+|---|---|
+| **Quay vùng** | Chọn và quay bất kỳ vùng màn hình nào |
+| **Âm thanh hệ thống** | Thu âm hệ thống qua ScreenCaptureKit |
+| **Microphone** | Ghi âm mic tùy chọn cùng với âm thanh hệ thống |
+| **Cắt video** | Cắt điểm đầu/cuối ngay trong cửa sổ xem trước |
+| **Xuất MP4** | Lưu video chất lượng cao |
+| **Xuất GIF** | Chuyển đổi thành GIF động với FPS và tỉ lệ tuỳ chỉnh |
+| **Cài đặt FPS** | 24 / 30 / 60 fps (Settings → General) |
+
+---
 
 ### Cài đặt
 
-**Tải bản phát hành**
+**Tải DMG (khuyên dùng)**
 
-1. Mở [Releases](https://github.com/bloodstalk1/Clipo/releases)
-2. Tải file `.dmg` mới nhất
+1. Vào trang [**Releases**](https://github.com/mynameisbat/Clipo/releases/latest)
+2. Tải `Clipo-v3.0.0.dmg`
 3. Mở DMG và kéo `Clipo.app` vào thư mục **Applications**
+4. Khởi động Clipo — sẽ xuất hiện trên menu bar
 
 **Build từ source**
 
 ```bash
-git clone https://github.com/bloodstalk1/Clipo.git
-cd clipo
+git clone https://github.com/mynameisbat/Clipo.git
+cd Clipo
 xcodegen generate
 open Clipo.xcodeproj
+# Nhấn ⌘R trong Xcode
 ```
-
-Chạy bằng `⌘R` trong Xcode.
 
 **Đóng gói DMG**
 
@@ -181,57 +242,63 @@ xcodegen generate
 ./scripts/package_dmg.sh
 ```
 
-### Cách sử dụng
+---
 
-1. Mở Clipo bằng `⌘⇧V` hoặc click biểu tượng menu bar
-2. Tìm kiếm hoặc duyệt lịch sử — gõ để lọc, hoặc chạm chip bên dưới ô tìm kiếm
-3. Nhấn `Enter` để dán mục đang chọn, hoặc click vào hàng bất kỳ
-4. Giữ `⌘` rồi nhấn số (`⌘1`..`⌘9`) để lấy mục gần nhất thứ N
-5. Nhấn `⌘T` để tạm dừng thu thập lịch sử khi copy mật khẩu hoặc dữ liệu nhạy cảm
-6. Click phải vào hàng bất kỳ để **Ghim / Bỏ ghim**, **Sao chép dạng văn bản thuần**, **Xóa**
-7. Dùng nút pause ở footer để tiếp tục thu thập lịch sử
+### Quyền (Permissions)
+
+| Quyền | Dùng cho | Nếu không cấp |
+|---|---|---|
+| **Accessibility** | Tự động dán vào app trước đó | Sao chép vào clipboard — tự dán bằng `⌘V` |
+| **Screen Recording** | Chụp & quay màn hình | Tính năng không khả dụng |
+| **Microphone** | Ghi âm mic khi quay màn hình | Quay không có mic (âm thanh hệ thống vẫn hoạt động) |
+
+Cấp quyền Screen Recording: **System Settings → Privacy & Security → Screen & System Audio Recording → Clipo ✓**
+
+---
 
 ### Phím tắt
 
 | Phím tắt | Hành động |
-| --- | --- |
+|---|---|
 | `⌘⇧V` | Bật/tắt popup clipboard |
-| `⌃⌥V` | Mở paste picker (mở rộng màn hình) |
+| `⌃⌥V` | Mở paste picker |
+| `⌘⌥S` | Chụp màn hình (mặc định) |
+| `⌘⌥R` | Bắt đầu quay màn hình (mặc định) |
 | `↑` / `↓` | Di chuyển giữa các mục |
 | `⌘↑` / `⌘↓` | Nhảy lên đầu / xuống cuối |
 | `Enter` | Dán mục đang chọn |
-| `⌘1`..`⌘9` | Quick paste (mục gần nhất thứ 1–9) |
+| `⌘1`–`⌘9` | Quick paste (mục gần nhất thứ N) |
 | `⌘P` | Ghim / bỏ ghim mục đang chọn |
 | `⌘T` | Tạm dừng / tiếp tục thu thập lịch sử |
 | `⌘F` | Focus vào ô tìm kiếm |
 | `Esc` | Xóa tìm kiếm, rồi đóng popup |
 
-Mọi phím tắt (trừ di chuyển) có thể gán lại trong **Settings → Shortcuts**.
+Mọi phím tắt có thể gán lại trong **Settings → Shortcuts**.
 
-### Quyền (Permissions)
-
-Clipo cần quyền **Accessibility** chỉ cho auto-paste. Nếu không có, Clipo vẫn lưu lịch sử và đưa nội dung vào clipboard — bạn tự dán bằng `⌘V`.
-
-1. Mở Clipo và click banner vàng trong popup (hoặc **Settings → Privacy**)
-2. Bật Clipo trong **System Settings → Privacy & Security → Accessibility**
+---
 
 ### Yêu cầu hệ thống
 
-- macOS 13 trở lên
+- macOS 13 Ventura trở lên
 - Apple Silicon hoặc Intel Mac
+- ~15 MB dung lượng
 
 ### Tech stack
 
-| Lớp | Công nghệ sử dụng |
-| --- | --- |
-| Ngôn ngữ | Swift 6 với strict concurrency |
-| UI | SwiftUI + AppKit hybrid (NSVisualEffectView cho popup) |
-| Lưu trữ | GRDB.swift + SQLite FTS5 cho tìm kiếm toàn văn |
-| Phím tắt | KeyboardShortcuts (đăng ký phím tắt toàn cục) |
+| Lớp | Công nghệ |
+|---|---|
+| Ngôn ngữ | Swift 6 — strict concurrency, actors, `Sendable` |
+| UI | SwiftUI + AppKit hybrid, `NSVisualEffectView` glass |
+| Lưu trữ | GRDB.swift + SQLite FTS5 tìm kiếm toàn văn |
+| Quay màn hình | AVFoundation + ScreenCaptureKit |
+| OCR | Vision framework |
+| Phím tắt | KeyboardShortcuts |
 | Dự án | XcodeGen |
 
 ---
 
-## License
+<div align="center">
 
-MIT License. See `LICENSE` for details.
+MIT License · Made with ❤️ for macOS
+
+</div>
