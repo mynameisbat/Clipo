@@ -2,6 +2,13 @@ import SwiftUI
 import AVKit
 import UniformTypeIdentifiers
 
+/// Reference-type box used to share live trimStart/trimEnd values with AVPlayer observer closures.
+/// Required because SwiftUI Views are structs — [weak self] is not valid in struct closures.
+final class TrimBoundaryBox: @unchecked Sendable {
+    var start: Double = 0
+    var end: Double = .infinity
+}
+
 struct CaptureRecordingPreviewView: View {
     let videoURL: URL
     let onCancel: () -> Void
@@ -9,6 +16,7 @@ struct CaptureRecordingPreviewView: View {
     @State private var player: AVPlayer
     @State private var isConverting = false
     @State private var conversionError: String? = nil
+    @State private var successMessage: String? = nil
     @State private var videoDuration: String = "--:--"
     @State private var videoResolution: String = "--- × ---"
     
@@ -17,6 +25,8 @@ struct CaptureRecordingPreviewView: View {
     @State private var trimStart: Double = 0.0
     @State private var trimEnd: Double = 0.0
     @State private var timeObserver: Any? = nil
+    @State private var loopObserver: NSObjectProtocol? = nil
+    @State private var trimBoundaryBox = TrimBoundaryBox()
     
     init(videoURL: URL, onCancel: @escaping () -> Void) {
         self.videoURL = videoURL
@@ -145,6 +155,17 @@ struct CaptureRecordingPreviewView: View {
                     }
                 }
                 
+                if let message = successMessage {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text(message)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.green)
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 if let error = conversionError {
                     Text(error)
                         .font(.system(size: 11))
@@ -242,33 +263,51 @@ struct CaptureRecordingPreviewView: View {
             setupLoopingAndLoadMetadata()
         }
         .onDisappear {
-            cleanUpTimeObserver()
+            cleanUpObservers()
+        }
+        .onChange(of: trimStart) { newStart in
+            trimBoundaryBox.start = newStart
+            // BUG-05 fix: seek player immediately when trim slider changes
+            player.seek(to: CMTime(seconds: newStart, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+        .onChange(of: trimEnd) { newEnd in
+            trimBoundaryBox.end = newEnd
+            // BUG-05 fix: if current position exceeds new trimEnd, seek back to trimStart
+            let currentSeconds = player.currentTime().seconds
+            if currentSeconds > newEnd {
+                player.seek(to: CMTime(seconds: trimStart, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            }
         }
     }
     
     private func setupLoopingAndLoadMetadata() {
         player.play()
-        
-        // Loop recording video playback
-        NotificationCenter.default.addObserver(
+
+        // Capture player directly (AVPlayer is a class — safe to capture strongly in closures)
+        // TrimBoundary box lets us update live values without [weak self] on a struct
+        let capturedPlayer = player
+        let trimBox = trimBoundaryBox
+
+        // BUG-01 fix: store observer token so it can be properly removed
+        // BUG-02 fix: read live trimStart from trimBox, not a stale captured value
+        let token = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: player.currentItem,
             queue: .main
-        ) { [weak player] _ in
-            guard let player = player else { return }
-            player.seek(to: CMTime(seconds: trimStart, preferredTimescale: 600))
-            player.play()
+        ) { _ in
+            capturedPlayer.seek(to: CMTime(seconds: trimBox.start, preferredTimescale: 600))
+            capturedPlayer.play()
         }
-        
-        // Add periodic time observer to keep playback within trim boundaries
-        let observer = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 10), queue: .main) { [weak player] time in
-            guard let player = player else { return }
+        self.loopObserver = token
+
+        // BUG-08 fix: read live trimStart/trimEnd from trimBox inside periodic observer
+        let observer = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 10), queue: .main) { time in
             let seconds = time.seconds
-            if seconds < trimStart {
-                player.seek(to: CMTime(seconds: trimStart, preferredTimescale: 600))
-            } else if seconds > trimEnd {
-                player.seek(to: CMTime(seconds: trimStart, preferredTimescale: 600))
-                player.play()
+            if seconds < trimBox.start {
+                capturedPlayer.seek(to: CMTime(seconds: trimBox.start, preferredTimescale: 600))
+            } else if seconds > trimBox.end {
+                capturedPlayer.seek(to: CMTime(seconds: trimBox.start, preferredTimescale: 600))
+                capturedPlayer.play()
             }
         }
         self.timeObserver = observer
@@ -301,15 +340,21 @@ struct CaptureRecordingPreviewView: View {
         }
     }
     
-    private func cleanUpTimeObserver() {
+    // BUG-01 fix: remove both observers (periodic + notification)
+    private func cleanUpObservers() {
         if let observer = timeObserver {
             player.removeTimeObserver(observer)
             self.timeObserver = nil
         }
+        if let token = loopObserver {
+            NotificationCenter.default.removeObserver(token)
+            self.loopObserver = nil
+        }
+        player.pause()
     }
     
     private func closeAndCleanUp() {
-        cleanUpTimeObserver()
+        cleanUpObservers()
         onCancel()
     }
     
@@ -322,9 +367,11 @@ struct CaptureRecordingPreviewView: View {
         let trimmedURL = tempDir.appendingPathComponent(fileName)
         
         let asset = AVAsset(url: videoURL)
+        // BUG-03 fix: AVAssetExportPresetPassthrough is incompatible with .mp4 container.
+        // Use HighestQuality which re-muxes correctly into MP4.
         guard let exportSession = AVAssetExportSession(
             asset: asset,
-            presetName: AVAssetExportPresetPassthrough
+            presetName: AVAssetExportPresetHighestQuality
         ) else {
             throw NSError(domain: "CapturePreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
         }
@@ -368,8 +415,13 @@ struct CaptureRecordingPreviewView: View {
                         try? FileManager.default.removeItem(at: processedURL)
                     }
                     
+                    // BUG-09 fix: show success feedback before closing
                     await MainActor.run {
                         self.isConverting = false
+                        self.successMessage = "Video saved successfully!"
+                    }
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                    await MainActor.run {
                         self.closeAndCleanUp()
                     }
                 } catch {
@@ -408,8 +460,13 @@ struct CaptureRecordingPreviewView: View {
                         try? FileManager.default.removeItem(at: processedURL)
                     }
                     
+                    // BUG-09 fix: show success feedback before closing
                     await MainActor.run {
                         self.isConverting = false
+                        self.successMessage = "GIF exported successfully!"
+                    }
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                    await MainActor.run {
                         self.closeAndCleanUp()
                     }
                 } catch {
@@ -434,8 +491,13 @@ struct CaptureRecordingPreviewView: View {
                 pb.clearContents()
                 pb.writeObjects([processedURL as NSURL])
                 
+                // BUG-09 fix: show success feedback before closing
                 await MainActor.run {
                     self.isConverting = false
+                    self.successMessage = "File copied to clipboard!"
+                }
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                await MainActor.run {
                     self.closeAndCleanUp()
                 }
             } catch {

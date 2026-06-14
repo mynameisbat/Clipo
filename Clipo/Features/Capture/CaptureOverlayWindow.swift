@@ -22,7 +22,8 @@ final class CaptureOverlayWindow: NSWindow {
             defer: false
         )
         
-        self.level = .statusBar
+        // BUG-10 fix: use maximum window level to ensure overlay stays above all other windows
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
         self.isOpaque = false
         self.backgroundColor = .clear
         self.hasShadow = false

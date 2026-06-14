@@ -408,7 +408,7 @@ struct SettingsView: View {
            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
             return "v\(version) (build \(build))"
         }
-        return "v2.0.0 (build 3)"
+        return "Unknown"
     }
 
     @ViewBuilder
