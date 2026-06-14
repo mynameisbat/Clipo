@@ -114,9 +114,15 @@ private final class MockClipboardHistoryStoreForPermissionTests: ClipboardHistor
 
     func setPinned(id: UUID, isPinned: Bool) async throws {}
 
+    func setPinboard(id: UUID, pinboard: String?) async throws {}
+
+    func removePinboard(named name: String) async throws {}
+
     func delete(id: UUID) async throws {}
 
     func clearHistory() async throws {}
+
+    func updateCreatedAt(id: UUID, date: Date) async throws {}
 
     func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
         try await recentItems(limit: limit)
@@ -129,6 +135,10 @@ private final class MockClipboardHistoryStoreForPermissionTests: ClipboardHistor
 
 private final class MockPasteServiceForPermissionTests: PasteService {
     func paste(_ item: ClipboardItem) async throws -> PasteResult {
+        return .copiedOnly
+    }
+
+    func pasteAsPlainText(_ item: ClipboardItem) async throws -> PasteResult {
         return .copiedOnly
     }
 

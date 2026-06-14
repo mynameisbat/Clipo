@@ -71,6 +71,7 @@ private struct DemoPanelView: View {
                                     isSelected: index == selectedIndex,
                                     isCompact: isCompact,
                                     style: .anchoredToMenuBar,
+                                    searchText: "",
                                     quickPasteHint: index < 9 ? "⌘\(index + 1)" : nil,
                                     onTogglePin: {},
                                     onDelete: {},

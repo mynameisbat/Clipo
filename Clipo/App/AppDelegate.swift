@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController?
     private let hotkeyService = GlobalHotkeyService()
     private var panelController: ClipboardPanelController?
+    private var viewModel: ClipboardPopupViewModel?
 
     override init() {
         super.init()
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pasteService: environment.pasteService,
             permissions: environment.permissions
         )
+        self.viewModel = viewModel
         let presentationCoordinator = ClipboardPresentationCoordinator(
             monitor: environment.monitor,
             popupLoader: viewModel
@@ -72,6 +74,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyService.registerQuickPaste(at: index) { [weak self] in
                 Task { @MainActor in
                     await self?.environment.quickPaste(at: index)
+                }
+            }
+        }
+
+        hotkeyService.registerSequentialPaste { [weak self] in
+            Task { @MainActor in
+                guard let self = self, let viewModel = self.viewModel else { return }
+                if viewModel.pasteStack.isEmpty {
+                    NSSound.beep()
+                    viewModel.toastManagerForView.show(.error("Paste Stack is empty"))
+                } else {
+                    await viewModel.popAndPasteStack()
+                }
+            }
+        }
+        
+        hotkeyService.registerScreenCapture {
+            Task { @MainActor in
+                CaptureService.shared.startCaptureFlow(mode: .image)
+            }
+        }
+
+        hotkeyService.registerScreenRecording {
+            Task { @MainActor in
+                if CaptureService.shared.isRecording {
+                    CaptureService.shared.stopRecording()
+                } else {
+                    CaptureService.shared.startCaptureFlow(mode: .video)
                 }
             }
         }

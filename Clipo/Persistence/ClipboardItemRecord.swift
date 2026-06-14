@@ -12,6 +12,7 @@ struct ClipboardItemRecord: Codable, FetchableRecord, MutablePersistableRecord {
     var sourceAppBundleId: String?
     var createdAt: Date
     var isPinned: Bool
+    var pinboard: String?
 
     init(item: ClipboardItem) {
         id = item.id
@@ -22,6 +23,7 @@ struct ClipboardItemRecord: Codable, FetchableRecord, MutablePersistableRecord {
         sourceAppBundleId = item.sourceAppBundleId
         createdAt = item.createdAt
         isPinned = item.isPinned
+        pinboard = item.pinboard
     }
 
     var domain: ClipboardItem {
@@ -33,7 +35,8 @@ struct ClipboardItemRecord: Codable, FetchableRecord, MutablePersistableRecord {
             resourcePath: resourcePath,
             sourceAppBundleId: sourceAppBundleId,
             createdAt: createdAt,
-            isPinned: isPinned
+            isPinned: isPinned,
+            pinboard: pinboard
         )
     }
 }

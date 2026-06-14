@@ -15,6 +15,7 @@ final class AppEnvironment: ObservableObject {
     let monitor: ClipboardMonitor
     let activityDetector: ActivityLevelDetector
     let adaptiveMonitor: AdaptiveClipboardMonitor
+    let updateChecker: UpdateChecker
     private var monitorTimer: Timer? // Deprecated: Replaced by adaptiveMonitor
 
     init() {
@@ -58,11 +59,13 @@ final class AppEnvironment: ObservableObject {
             clipboardMonitor: monitor,
             activityDetector: activityDetector
         )
+        self.updateChecker = UpdateChecker()
     }
 
     func startMonitoring() {
         let historyStoreRef = historyStore
         let adaptiveMonitorRef = adaptiveMonitor
+        let updateCheckerRef = updateChecker
 
         Task {
             // Purge expired items on startup
@@ -70,6 +73,9 @@ final class AppEnvironment: ObservableObject {
 
             // Start adaptive monitoring
             await adaptiveMonitorRef.startMonitoring()
+
+            // Check for updates silently on launch
+            _ = await updateCheckerRef.checkForUpdates(silent: true)
         }
     }
 

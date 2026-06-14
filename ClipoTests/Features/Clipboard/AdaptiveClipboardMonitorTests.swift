@@ -44,9 +44,9 @@ final class AdaptiveClipboardMonitorTests: XCTestCase {
         // When: Activity level changes to idle
         await monitor.adjustInterval(to: .idle)
 
-        // Then: Interval should be 5s
+        // Then: Interval should be 2s
         let interval = await monitor.currentInterval
-        XCTAssertEqual(interval, 5.0, accuracy: 0.1)
+        XCTAssertEqual(interval, 2.0, accuracy: 0.1)
     }
 
     func testAdjustsIntervalToActiveState() async {
@@ -56,9 +56,9 @@ final class AdaptiveClipboardMonitorTests: XCTestCase {
         // When: Activity level changes to active
         await monitor.adjustInterval(to: .active)
 
-        // Then: Interval should be 1s
+        // Then: Interval should be 0.35s
         let interval = await monitor.currentInterval
-        XCTAssertEqual(interval, 1.0, accuracy: 0.1)
+        XCTAssertEqual(interval, 0.35, accuracy: 0.1)
     }
 
     func testAdjustsIntervalToFocusedState() async {
@@ -68,9 +68,9 @@ final class AdaptiveClipboardMonitorTests: XCTestCase {
         // When: Activity level changes to focused
         await monitor.adjustInterval(to: .focused)
 
-        // Then: Interval should be 0.5s
+        // Then: Interval should be 0.2s
         let interval = await monitor.currentInterval
-        XCTAssertEqual(interval, 0.5, accuracy: 0.1)
+        XCTAssertEqual(interval, 0.2, accuracy: 0.1)
     }
 
     func testPausesMonitoringDuringSleep() async {
@@ -98,9 +98,9 @@ final class AdaptiveClipboardMonitorTests: XCTestCase {
         // Wait for state change
         try? await Task.sleep(nanoseconds: 100_000_000)
 
-        // Then: Should switch to focused state
+        // Then: Should switch to focused state (0.2s)
         let interval = await monitor.currentInterval
-        XCTAssertEqual(interval, 0.5, accuracy: 0.1)
+        XCTAssertEqual(interval, 0.2, accuracy: 0.1)
 
         // When: Popup closes
         await monitor.notifyPopupClosed()
@@ -108,9 +108,9 @@ final class AdaptiveClipboardMonitorTests: XCTestCase {
         // Wait for state change
         try? await Task.sleep(nanoseconds: 100_000_000)
 
-        // Then: Should return to active state
+        // Then: Should return to active state (0.35s)
         let newInterval = await monitor.currentInterval
-        XCTAssertEqual(newInterval, 1.0, accuracy: 0.1)
+        XCTAssertEqual(newInterval, 0.35, accuracy: 0.1)
     }
 }
 

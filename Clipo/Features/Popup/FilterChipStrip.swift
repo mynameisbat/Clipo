@@ -2,12 +2,24 @@ import SwiftUI
 
 struct FilterChipStrip: View {
     @Binding var activeFilters: Set<HistoryFilter>
+    let pinboards: [String]
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DT.Spacing.xs) {
                 ForEach(HistoryFilter.commonFilters) { filter in
                     chip(for: filter)
+                }
+
+                if !pinboards.isEmpty {
+                    Rectangle()
+                        .fill(DT.Color.stroke)
+                        .frame(width: 1, height: 16)
+                        .padding(.horizontal, 2)
+
+                    ForEach(pinboards, id: \.self) { name in
+                        chip(for: .pinboard(name))
+                    }
                 }
 
                 if !activeFilters.isEmpty {

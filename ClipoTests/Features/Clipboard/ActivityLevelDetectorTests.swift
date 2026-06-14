@@ -27,7 +27,7 @@ final class ActivityLevelDetectorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        detector = ActivityLevelDetector()
+        detector = ActivityLevelDetector(idleThreshold: 0.1, checkIntervalSeconds: 0.02)
     }
 
     override func tearDown() {
@@ -38,7 +38,7 @@ final class ActivityLevelDetectorTests: XCTestCase {
     // MARK: - Basic State Detection
 
     func testDetectsIdleStateAfter30Seconds() async {
-        // Given: No activity for 30 seconds
+        // Given: No activity for 0.1 seconds
         let expectation = XCTestExpectation(description: "Idle state detected")
         let state = ActivityTestState()
 
@@ -51,11 +51,11 @@ final class ActivityLevelDetectorTests: XCTestCase {
             }
         }
 
-        // When: Wait 31 seconds
-        try? await Task.sleep(nanoseconds: 31_000_000_000)
+        // When: Wait 0.15 seconds
+        try? await Task.sleep(nanoseconds: 150_000_000)
 
         // Then: Should detect idle
-        await fulfillment(of: [expectation], timeout: 32.0)
+        await fulfillment(of: [expectation], timeout: 1.0)
         let level = await state.getLevel()
         XCTAssertEqual(level, .idle)
     }
@@ -69,8 +69,8 @@ final class ActivityLevelDetectorTests: XCTestCase {
             }
         }
 
-        // When: Wait only 15 seconds
-        try? await Task.sleep(nanoseconds: 15_000_000_000)
+        // When: Wait only 0.05 seconds (below 0.1s threshold)
+        try? await Task.sleep(nanoseconds: 50_000_000)
 
         // Then: Should still be active
         let level = await state.getLevel()

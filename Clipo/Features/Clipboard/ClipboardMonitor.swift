@@ -99,6 +99,12 @@ actor ClipboardMonitor: ClipboardMonitoring {
         lastChangeCount = currentChangeCount
 
         let snapshot = snapshotProvider()
+        
+        // Skip storing if this is from an ignored application (e.g. password manager)
+        if let bundleId = snapshot.sourceAppBundleId, IgnoredAppsManager.shared.isIgnored(bundleId: bundleId) {
+            return
+        }
+
         let fingerprint = snapshot.fingerprint
         guard fingerprint != lastFingerprint else { return }
 
@@ -126,5 +132,53 @@ actor ClipboardMonitor: ClipboardMonitoring {
     private func setLastPastedFingerprint() {
         let snapshot = snapshotProvider()
         lastPastedFingerprint = snapshot.fingerprint
+    }
+}
+
+public struct IgnoredAppsManager: Sendable {
+    public static let shared = IgnoredAppsManager()
+    
+    private let key = "clipo.ignoredAppBundleIds"
+    
+    public let defaultIgnored = [
+        "com.apple.keychainaccess",
+        "com.agilebits.onepassword",
+        "com.1password.1password",
+        "com.bitwarden.desktop",
+        "org.keepassxc.keepassxc",
+        "com.dashlane.dashlane",
+        "com.keepersecurity.keeper",
+        "com.macpassapp.macpass"
+    ]
+    
+    public func getIgnoredBundleIds() -> [String] {
+        if let list = UserDefaults.standard.stringArray(forKey: key) {
+            return list
+        }
+        // Initialize defaults
+        UserDefaults.standard.set(defaultIgnored, forKey: key)
+        return defaultIgnored
+    }
+    
+    public func setIgnoredBundleIds(_ list: [String]) {
+        UserDefaults.standard.set(list, forKey: key)
+    }
+    
+    public func isIgnored(bundleId: String) -> Bool {
+        return getIgnoredBundleIds().contains(bundleId)
+    }
+    
+    public func addIgnoredBundleId(_ bundleId: String) {
+        var list = getIgnoredBundleIds()
+        if !list.contains(bundleId) {
+            list.append(bundleId)
+            setIgnoredBundleIds(list)
+        }
+    }
+    
+    public func removeIgnoredBundleId(_ bundleId: String) {
+        var list = getIgnoredBundleIds()
+        list.removeAll(where: { $0 == bundleId })
+        setIgnoredBundleIds(list)
     }
 }

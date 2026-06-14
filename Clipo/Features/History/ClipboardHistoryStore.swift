@@ -7,8 +7,11 @@ protocol ClipboardHistoryLoading: Sendable {
     func search(query: String) async throws -> [ClipboardItem]
     func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem]
     func setPinned(id: UUID, isPinned: Bool) async throws
+    func setPinboard(id: UUID, pinboard: String?) async throws
+    func removePinboard(named name: String) async throws
     func delete(id: UUID) async throws
     func clearHistory() async throws
+    func updateCreatedAt(id: UUID, date: Date) async throws
 }
 
 protocol ClipboardItemSink: Sendable {
@@ -39,6 +42,69 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
     func insert(_ item: ClipboardItem) async throws {
         try await purgeExpiredItemsUsingConfiguredPolicy(now: Date())
         try await writer.write { db in
+            var duplicateId: UUID?
+            
+            if item.kind == .text || item.kind == .link {
+                if let contentText = item.contentText {
+                    let dup = try ClipboardItemRecord
+                        .filter(Column("kind") == item.kind.rawValue && Column("contentText") == contentText)
+                        .fetchOne(db)
+                    duplicateId = dup?.id
+                }
+            } else if item.kind == .file {
+                if let resourcePath = item.resourcePath {
+                    let dup = try ClipboardItemRecord
+                        .filter(Column("kind") == item.kind.rawValue && Column("resourcePath") == resourcePath)
+                        .fetchOne(db)
+                    duplicateId = dup?.id
+                }
+            } else if item.kind == .image {
+                if let resourcePath = item.resourcePath,
+                   let newAttrs = try? FileManager.default.attributesOfItem(atPath: resourcePath),
+                   let newSize = newAttrs[.size] as? Int64 {
+                    
+                    let imageRecords = try ClipboardItemRecord
+                        .filter(Column("kind") == ClipboardItemKind.image.rawValue)
+                        .fetchAll(db)
+                        
+                    for rec in imageRecords {
+                        if let recPath = rec.resourcePath,
+                           let attrs = try? FileManager.default.attributesOfItem(atPath: recPath),
+                           let size = attrs[.size] as? Int64,
+                           size == newSize {
+                            let newURL = URL(fileURLWithPath: resourcePath)
+                            let recURL = URL(fileURLWithPath: recPath)
+                            if let newData = try? Data(contentsOf: newURL, options: .mappedIfSafe),
+                               let recData = try? Data(contentsOf: recURL, options: .mappedIfSafe),
+                               newData == recData {
+                                duplicateId = rec.id
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if let duplicateId {
+                let paths = try String.fetchAll(
+                    db,
+                    sql: "SELECT resourcePath FROM clipboard_items WHERE id = ? AND resourcePath IS NOT NULL",
+                    arguments: [duplicateId]
+                )
+                try db.execute(
+                    sql: "DELETE FROM clipboard_items WHERE id = ?",
+                    arguments: [duplicateId]
+                )
+                for path in paths {
+                    if path != item.resourcePath {
+                        if let url = URL(string: path), url.scheme != nil, !url.isFileURL {
+                            continue
+                        }
+                        try? FileManager.default.removeItem(atPath: path)
+                    }
+                }
+            }
+            
             var record = ClipboardItemRecord(item: item)
             try record.insert(db)
         }
@@ -80,6 +146,39 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
         await cache.invalidate()
     }
 
+    func setPinboard(id: UUID, pinboard: String?) async throws {
+        try await writer.write { db in
+            try db.execute(
+                sql: "UPDATE clipboard_items SET pinboard = ? WHERE id = ?",
+                arguments: [pinboard, id]
+            )
+        }
+
+        await cache.invalidate()
+    }
+
+    func removePinboard(named name: String) async throws {
+        try await writer.write { db in
+            try db.execute(
+                sql: "UPDATE clipboard_items SET pinboard = NULL WHERE pinboard = ?",
+                arguments: [name]
+            )
+        }
+
+        await cache.invalidate()
+    }
+
+    func updateCreatedAt(id: UUID, date: Date) async throws {
+        try await writer.write { db in
+            try db.execute(
+                sql: "UPDATE clipboard_items SET createdAt = ? WHERE id = ?",
+                arguments: [date, id]
+            )
+        }
+
+        await cache.invalidate()
+    }
+
     func search(query: String) async throws -> [ClipboardItem] {
         if let cached = await cache.getQuery(query) {
             return cached
@@ -91,13 +190,14 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
             let sql = """
                 SELECT c.*
                 FROM clipboard_items c
-                INNER JOIN clipboard_items_fts fts ON c.rowid = fts.rowid
-                WHERE clipboard_items_fts MATCH ?
+                WHERE c.id IN (SELECT id FROM clipboard_items_fts WHERE clipboard_items_fts MATCH ?)
+                   OR (c.sourceAppBundleId LIKE ?)
                 ORDER BY c.isPinned DESC, c.createdAt DESC
                 """
 
+            let likeQuery = "%\(query)%"
             return try ClipboardItemRecord
-                .fetchAll(db, sql: sql, arguments: [query])
+                .fetchAll(db, sql: sql, arguments: [query, likeQuery])
                 .map(\.domain)
         }
 
@@ -210,7 +310,35 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
             return item.isPinned
         case .dateRange(let range):
             return Self.isInRange(item.createdAt, range: range)
+        case .pinboard(let name):
+            return item.pinboard == name
+        case .sourceApp(let appQuery):
+            guard let bundleId = item.sourceAppBundleId else { return false }
+            let query = appQuery.lowercased()
+            if bundleId.lowercased().contains(query) {
+                return true
+            }
+            let appName = getAppName(from: bundleId).lowercased()
+            return appName.contains(query)
         }
+    }
+
+    private static func getAppName(from bundleId: String) -> String {
+        let lower = bundleId.lowercased()
+        if lower.contains("slack") { return "Slack" }
+        if lower.contains("safari") { return "Safari" }
+        if lower.contains("chrome") { return "Google Chrome" }
+        if lower.contains("vscode") || lower.contains("visualstudio") { return "VS Code" }
+        if lower.contains("xcode") { return "Xcode" }
+        if lower.contains("finder") { return "Finder" }
+        if lower.contains("terminal") { return "Terminal" }
+        if lower.contains("iterm") { return "iTerm" }
+        
+        let components = bundleId.split(separator: ".")
+        if let last = components.last {
+            return String(last).capitalized
+        }
+        return bundleId
     }
 
     private static func isInRange(_ date: Date, range: HistoryFilter.DateRange) -> Bool {

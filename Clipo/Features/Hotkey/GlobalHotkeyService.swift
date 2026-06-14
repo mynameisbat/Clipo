@@ -7,7 +7,8 @@ enum ShortcutName {
         default: .init(.v, modifiers: [.command, .shift])
     )
     nonisolated(unsafe) static let openPastePicker = KeyboardShortcuts.Name(
-        "openPastePicker"
+        "openPastePicker",
+        default: .init(.v, modifiers: [.command, .option])
     )
     nonisolated(unsafe) static let screenExtensionTogglePopup = KeyboardShortcuts.Name(
         "screenExtensionTogglePopup",
@@ -20,6 +21,18 @@ enum ShortcutName {
     nonisolated(unsafe) static let pauseToggle = KeyboardShortcuts.Name(
         "pauseToggle",
         default: .init(.t, modifiers: [.command])
+    )
+    nonisolated(unsafe) static let sequentialPaste = KeyboardShortcuts.Name(
+        "sequentialPaste",
+        default: .init(.v, modifiers: [.command, .control])
+    )
+    nonisolated(unsafe) static let screenCapture = KeyboardShortcuts.Name(
+        "screenCapture",
+        default: .init(.s, modifiers: [.command, .option])
+    )
+    nonisolated(unsafe) static let screenRecording = KeyboardShortcuts.Name(
+        "screenRecording",
+        default: .init(.r, modifiers: [.command, .option])
     )
 
     nonisolated(unsafe) static let quickPaste1 = KeyboardShortcuts.Name("quickPaste1", default: .init(.one, modifiers: [.command]))
@@ -45,12 +58,19 @@ final class GlobalHotkeyService {
         case togglePopup
         case openPastePicker
         case togglePause
+        case sequentialPaste
         case quickPaste(Int)
+        case screenCapture
+        case screenRecording
     }
+
+    private var screenCaptureHandler: (() -> Void)?
+    private var screenRecordingHandler: (() -> Void)?
 
     private var togglePopupHandler: (() -> Void)?
     private var openPastePickerHandler: (() -> Void)?
     private var pauseToggleHandler: (() -> Void)?
+    private var sequentialPasteHandler: (() -> Void)?
     private var quickPasteHandlers: [Int: () -> Void] = [:]
     private var globalKeyMonitor: Any?
     private var lastHandledShortcutAt: Date?
@@ -61,6 +81,9 @@ final class GlobalHotkeyService {
         restoreDefaultIfNeeded(ShortcutName.screenExtensionTogglePopup)
         restoreDefaultIfNeeded(ShortcutName.screenExtensionOpenPastePicker)
         restoreDefaultIfNeeded(ShortcutName.pauseToggle)
+        restoreDefaultIfNeeded(ShortcutName.sequentialPaste)
+        restoreDefaultIfNeeded(ShortcutName.screenCapture)
+        restoreDefaultIfNeeded(ShortcutName.screenRecording)
         for name in ShortcutName.quickPasteNames {
             restoreDefaultIfNeeded(name)
         }
@@ -98,6 +121,25 @@ final class GlobalHotkeyService {
         }
     }
 
+    func registerSequentialPaste(handler: @escaping () -> Void) {
+        sequentialPasteHandler = handler
+        KeyboardShortcuts.onKeyDown(for: ShortcutName.sequentialPaste) { [weak self] in
+            Task { @MainActor in
+                self?.runShortcutAction(.sequentialPaste)
+            }
+        }
+    }
+
+    func registerScreenCapture(handler: @escaping () -> Void) {
+        screenCaptureHandler = handler
+        registerShortcut(ShortcutName.screenCapture, action: .screenCapture)
+    }
+
+    func registerScreenRecording(handler: @escaping () -> Void) {
+        screenRecordingHandler = handler
+        registerShortcut(ShortcutName.screenRecording, action: .screenRecording)
+    }
+
     func registerQuickPaste(at index: Int, handler: @escaping () -> Void) {
         guard index >= 1, index <= 9 else { return }
         quickPasteHandlers[index] = handler
@@ -126,6 +168,18 @@ final class GlobalHotkeyService {
 
         if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.pauseToggle) {
             return .togglePause
+        }
+
+        if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.sequentialPaste) {
+            return .sequentialPaste
+        }
+
+        if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.screenCapture) {
+            return .screenCapture
+        }
+
+        if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.screenRecording) {
+            return .screenRecording
         }
 
         for (index, name) in ShortcutName.quickPasteNames.enumerated() {
@@ -172,8 +226,14 @@ final class GlobalHotkeyService {
             openPastePickerHandler?()
         case .togglePause:
             pauseToggleHandler?()
+        case .sequentialPaste:
+            sequentialPasteHandler?()
         case .quickPaste(let index):
             quickPasteHandlers[index]?()
+        case .screenCapture:
+            screenCaptureHandler?()
+        case .screenRecording:
+            screenRecordingHandler?()
         }
     }
 

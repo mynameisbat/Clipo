@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import XCTest
 @testable import Clipo
 
@@ -18,9 +19,17 @@ final class ClipboardPanelControllerTests: XCTestCase {
 
     func testShortcutActionRecognizesPastePickerShortcut() {
         let controller = makeController()
-        let event = makeKeyEvent(keyCode: UInt16(ShortcutName.openPastePicker.defaultShortcut?.carbonKeyCode ?? 0), modifiers: [.command, .option])
+        let testShortcut = KeyboardShortcuts.Shortcut(.p, modifiers: [.command, .option])
+        KeyboardShortcuts.setShortcut(testShortcut, for: ShortcutName.openPastePicker)
+
+        let event = makeKeyEvent(
+            keyCode: UInt16(testShortcut.carbonKeyCode),
+            modifiers: [.command, .option]
+        )
 
         XCTAssertEqual(controller.shortcutAction(for: event), .present)
+
+        KeyboardShortcuts.setShortcut(nil, for: ShortcutName.openPastePicker)
     }
 
     func testShortcutActionRecognizesScreenExtensionToggleShortcut() {

@@ -5,6 +5,25 @@ All notable changes to Clipo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-06-14
+
+### Added
+- **Interactive Screen Capture & Editor**: Premium screen-capture utility inspired by Snapzy and CleanShot X.
+  - Flexible crop area selector with pixel-level magnification guide.
+  - Auto-snapping window detection under mouse cursor.
+  - Beautiful canvas backdrops with designer gradients (Sunrise, Sunset, Aurora, Ocean, Glass) and canvas settings (padding, corner radius, drop shadow).
+  - Vector markup annotation overlay for drawing arrows, freehand lines, and rectangles, plus **Blur & Blackout redaction tools** to safely obscure passwords and sensitive text.
+  - High-performance, offline Text Recognition (OCR) leveraging macOS Vision framework.
+  - Global customizable shortcut (default: `⌘⌥S`), status bar menu entry, and popup header button integration.
+- **Advanced Screen Recording**: High-fidelity video capture with system audio.
+  - System audio recording using `ScreenCaptureKit` and background serial dispatch queue.
+  - Interactive video trimming with looping boundary constraints in the recording preview sidebar.
+  - Customized export configurations for framerate (24/30/60 fps), resolution scale (50%/75%/100%), and GIF frame rate settings.
+- **Software Update Checker**: Built-in async update service using GitHub Releases API
+  - Silent checking on application launch
+  - Manual check trigger and update downloading in Settings -> About tab
+  - Modern update notification banner inside clipboard popup view
+
 ## [2.0.0] - 2026-05-02
 
 ### 🎉 Major Release: Performance & UI Modernization
@@ -281,6 +300,7 @@ See `docs/migration-guide.md` for detailed instructions.
 
 ---
 
+[3.0.0]: https://github.com/bloodstalk1/Clipo/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/bloodstalk1/Clipo/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/bloodstalk1/Clipo/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/bloodstalk1/Clipo/releases/tag/v1.0.0

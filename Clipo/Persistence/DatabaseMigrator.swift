@@ -60,6 +60,10 @@ enum DatabaseMigratorFactory {
                 """)
         }
 
+        migrator.registerMigration("addPinboardColumn") { db in
+            try db.execute(sql: "ALTER TABLE clipboard_items ADD COLUMN pinboard TEXT")
+        }
+
         return migrator
     }
 }

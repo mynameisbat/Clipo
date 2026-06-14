@@ -93,6 +93,7 @@ struct ClipboardItem: Identifiable, Equatable, Sendable {
     let sourceAppBundleId: String?
     let createdAt: Date
     var isPinned: Bool
+    var pinboard: String?
     var metadata: ClipboardItemMetadata
 
     init(
@@ -104,6 +105,7 @@ struct ClipboardItem: Identifiable, Equatable, Sendable {
         sourceAppBundleId: String? = nil,
         createdAt: Date = Date(),
         isPinned: Bool = false,
+        pinboard: String? = nil,
         metadata: ClipboardItemMetadata = .empty()
     ) {
         self.id = id
@@ -114,6 +116,7 @@ struct ClipboardItem: Identifiable, Equatable, Sendable {
         self.sourceAppBundleId = sourceAppBundleId
         self.createdAt = createdAt
         self.isPinned = isPinned
+        self.pinboard = pinboard
         self.metadata = metadata
     }
 }
@@ -154,6 +157,7 @@ extension ClipboardItem {
         sourceAppBundleId: String? = nil,
         createdAt: Date = Date(),
         isPinned: Bool = false,
+        pinboard: String? = nil,
         metadata: ClipboardItemMetadata = .empty()
     ) -> ClipboardItem {
         ClipboardItem(
@@ -165,6 +169,7 @@ extension ClipboardItem {
             sourceAppBundleId: sourceAppBundleId,
             createdAt: createdAt,
             isPinned: isPinned,
+            pinboard: pinboard,
             metadata: metadata
         )
     }

@@ -25,9 +25,13 @@ actor ActivityLevelDetector {
     private var wakeObserver: NSObjectProtocol?
 
     // Configuration
-    private let idleThreshold: TimeInterval = 30.0 // 30 seconds
+    private let idleThreshold: TimeInterval
+    private let checkIntervalNanoseconds: UInt64
 
-    init() {}
+    init(idleThreshold: TimeInterval = 30.0, checkIntervalSeconds: TimeInterval = 5.0) {
+        self.idleThreshold = idleThreshold
+        self.checkIntervalNanoseconds = UInt64(checkIntervalSeconds * 1_000_000_000)
+    }
 
     deinit {
         monitoringTask?.cancel()
@@ -149,8 +153,8 @@ actor ActivityLevelDetector {
                 updateActivityLevel(.idle)
             }
 
-            // Check every 5 seconds
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            // Check every checkInterval
+            try? await Task.sleep(nanoseconds: checkIntervalNanoseconds)
         }
     }
 

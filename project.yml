@@ -12,8 +12,8 @@ settings:
   base:
     SWIFT_VERSION: 6.0
     MACOSX_DEPLOYMENT_TARGET: "13.0"
-    MARKETING_VERSION: 2.0.0
-    CURRENT_PROJECT_VERSION: 3
+    MARKETING_VERSION: 3.0.0
+    CURRENT_PROJECT_VERSION: 4
 targets:
   Clipo:
     type: application

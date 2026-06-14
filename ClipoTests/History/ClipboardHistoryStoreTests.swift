@@ -77,6 +77,27 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(items.map(\.title), ["Pinned old", "Recent"])
     }
 
+    func testSetPinboardUpdatesStoredValue() async throws {
+        let store = try makeStore()
+        let item = ClipboardItem.stub(title: "Classify me")
+
+        try await store.insert(item)
+        try await store.setPinboard(id: item.id, pinboard: "Templates")
+
+        let items = try await store.recentItems(limit: 10)
+        XCTAssertEqual(items.first?.pinboard, "Templates")
+    }
+
+    func testSearchWithPinboardFilter() async throws {
+        let store = try makeStore()
+        
+        try await store.insert(.stub(title: "Template item", pinboard: "Templates"))
+        try await store.insert(.stub(title: "Regular item", pinboard: nil))
+
+        let filtered = try await store.recentItems(limit: 10, filters: [.pinboard("Templates")])
+        XCTAssertEqual(filtered.map(\.title), ["Template item"])
+    }
+
     private func makeStore() throws -> ClipboardHistoryStore {
         let database = try AppDatabase.inMemory()
         return ClipboardHistoryStore(writer: database.writer, retentionDaysProvider: { nil })

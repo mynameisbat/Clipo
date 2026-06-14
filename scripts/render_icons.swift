@@ -1,105 +1,251 @@
 import AppKit
 import SwiftUI
 
+struct PaperclipShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let w = rect.width
+        let h = rect.height
+        
+        let x0 = w * 0.24
+        let x1 = w * 0.40
+        let x2 = w * 0.56
+        let x3 = w * 0.72
+        
+        let yTopOuter = h * 0.20
+        let yTopInner = h * 0.35
+        let yBottomInner = h * 0.65
+        let yBottomOuter = h * 0.80
+        
+        // Start at inner tip
+        path.move(to: CGPoint(x: x2, y: h * 0.48))
+        
+        // Inner line going down
+        path.addLine(to: CGPoint(x: x2, y: yBottomInner))
+        
+        // Inner bottom bend
+        path.addArc(
+            center: CGPoint(x: (x1 + x2)/2, y: yBottomInner),
+            radius: (x2 - x1)/2,
+            startAngle: .degrees(0),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        
+        // Inner left line going up
+        path.addLine(to: CGPoint(x: x1, y: yTopInner))
+        
+        // Top outer bend
+        path.addArc(
+            center: CGPoint(x: (x1 + x3)/2, y: yTopInner),
+            radius: (x3 - x1)/2,
+            startAngle: .degrees(180),
+            endAngle: .degrees(0),
+            clockwise: false
+        )
+        
+        // Outer right line going down
+        path.addLine(to: CGPoint(x: x3, y: yBottomOuter))
+        
+        // Bottom outer bend
+        path.addArc(
+            center: CGPoint(x: (x0 + x3)/2, y: yBottomOuter),
+            radius: (x3 - x0)/2,
+            startAngle: .degrees(0),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        
+        // Outer left line going up
+        path.addLine(to: CGPoint(x: x0, y: yTopOuter))
+        
+        return path
+    }
+}
+
 struct AppIconView: View {
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 220, style: .continuous)
+            // Transparent outer container (1024x1024)
+            Color.clear
+
+            // Squircle background with shadows
+            RoundedRectangle(cornerRadius: 185, style: .continuous)
                 .fill(LinearGradient(
                     colors: [
-                        Color(red: 0.04, green: 0.07, blue: 0.12),
-                        Color(red: 0.06, green: 0.09, blue: 0.16)
+                        Color(red: 0.075, green: 0.078, blue: 0.11), // surfaceElevated
+                        Color(red: 0.043, green: 0.047, blue: 0.063)  // surface
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 ))
-
-            ZStack {
-                sheet(fill: Color(red: 0.12, green: 0.16, blue: 0.23), strokeOpacity: 0.06, rotation: -8, showContent: false)
-                sheet(fill: Color(red: 0.20, green: 0.25, blue: 0.34), strokeOpacity: 0.10, rotation: 0, showContent: false)
-                sheet(fill: Color(red: 0.28, green: 0.33, blue: 0.42), strokeOpacity: 0.16, rotation: 4, showContent: true)
-            }
-
-            RoundedRectangle(cornerRadius: 220, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 2
+                .frame(width: 824, height: 824)
+                .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 15)
+                .shadow(color: Color.black.opacity(0.4), radius: 32, x: 0, y: 30)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 185, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.14), Color.white.opacity(0.02)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 3
+                        )
+                        .frame(width: 824, height: 824)
                 )
+
+            // Radial Glow Behind Paperclip for Glass/Neon effect
+            RadialGradient(
+                colors: [
+                    Color(red: 0.00, green: 0.86, blue: 0.51).opacity(0.18),
+                    Color.clear
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: 320
+            )
+            .frame(width: 640, height: 640)
+
+            // 3D Glass/Metallic Paperclip Element
+            ZStack {
+                // 1. Drop Shadow under the paperclip itself (for 3D floating effect)
+                PaperclipShape()
+                    .stroke(Color.black.opacity(0.6), style: StrokeStyle(lineWidth: 42, lineCap: .round, lineJoin: .round))
+                    .frame(width: 320, height: 440)
+                    .offset(x: 10, y: 24)
+                    .blur(radius: 16)
+
+                // 2. Base Dark Reflection Border (adds depth)
+                PaperclipShape()
+                    .stroke(
+                        Color(red: 0.02, green: 0.16, blue: 0.12),
+                        style: StrokeStyle(lineWidth: 45, lineCap: .round, lineJoin: .round)
+                    )
+                    .frame(width: 320, height: 440)
+
+                // 3. Main Emerald Mint Body
+                PaperclipShape()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.05, green: 0.95, blue: 0.58), // Neon Mint
+                                Color(red: 0.00, green: 0.86, blue: 0.51)  // Emerald Mint
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 40, lineCap: .round, lineJoin: .round)
+                    )
+                    .frame(width: 320, height: 440)
+
+                // 4. Inner Glass Glow (Semi-transparent white highlight at the top-left edges)
+                PaperclipShape()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.6),
+                                Color.white.opacity(0.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round)
+                    )
+                    .frame(width: 308, height: 428)
+                    .offset(x: -4, y: -4)
+                    .blendMode(.screen)
+            }
+            .rotationEffect(.degrees(-15))
+            .offset(x: 10, y: -10)
         }
         .frame(width: 1024, height: 1024)
     }
+}
 
-    @ViewBuilder
-    private func sheet(fill: Color, strokeOpacity: Double, rotation: Double, showContent: Bool) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(fill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(strokeOpacity), lineWidth: 2)
-                )
-
-            if showContent {
-                VStack(alignment: .leading, spacing: 20) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(red: 0.06, green: 0.09, blue: 0.16))
-                        .frame(width: 200, height: 24)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(red: 0.06, green: 0.09, blue: 0.16).opacity(0.7))
-                        .frame(width: 320, height: 16)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(red: 0.06, green: 0.09, blue: 0.16).opacity(0.7))
-                        .frame(width: 280, height: 16)
-                    Spacer()
-                }
-                .frame(width: 480, height: 640, alignment: .topLeading)
-                .padding(.top, 88)
-                .padding(.leading, 60)
-
-                Circle()
-                    .fill(LinearGradient(
-                        colors: [Color(red: 0.18, green: 0.83, blue: 0.75), Color(red: 0.08, green: 0.72, blue: 0.65)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 120, height: 120)
-                    .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: 2))
-                    .offset(x: 188, y: 268)
-            }
-        }
-        .frame(width: 480, height: 640)
-        .rotationEffect(.degrees(rotation))
+struct MenuBarPaperclipShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let w = rect.width
+        let h = rect.height
+        
+        // Custom paperclip dimensions optimized for small sizes (wider loop spacings to prevent blur/merging)
+        let x0 = w * 0.15
+        let x1 = w * 0.38
+        let x2 = w * 0.62
+        let x3 = w * 0.85
+        
+        let yTopInner = h * 0.32
+        let yBottomInner = h * 0.68
+        let yBottomOuter = h * 0.72
+        
+        // Start at inner tip
+        path.move(to: CGPoint(x: x2, y: h * 0.45))
+        
+        // Inner line going down
+        path.addLine(to: CGPoint(x: x2, y: yBottomInner))
+        
+        // Inner bottom bend
+        path.addArc(
+            center: CGPoint(x: (x1 + x2)/2, y: yBottomInner),
+            radius: (x2 - x1)/2,
+            startAngle: .degrees(0),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        
+        // Inner left line going up
+        path.addLine(to: CGPoint(x: x1, y: yTopInner))
+        
+        // Top outer bend
+        path.addArc(
+            center: CGPoint(x: (x1 + x3)/2, y: yTopInner),
+            radius: (x3 - x1)/2,
+            startAngle: .degrees(180),
+            endAngle: .degrees(0),
+            clockwise: false
+        )
+        
+        // Outer right line going down
+        path.addLine(to: CGPoint(x: x3, y: yBottomOuter))
+        
+        // Bottom outer bend
+        path.addArc(
+            center: CGPoint(x: (x0 + x3)/2, y: yBottomOuter),
+            radius: (x3 - x0)/2,
+            startAngle: .degrees(0),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        
+        // Outer left line going up
+        path.addLine(to: CGPoint(x: x0, y: h * 0.22))
+        
+        return path
     }
 }
 
 struct MenuBarIconView: View {
+    var size: CGFloat = 22
+    
     var body: some View {
+        let scale = size / 22.0
         ZStack {
-            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                .stroke(Color.black, lineWidth: 1.2)
-                .frame(width: 10, height: 13)
-                .rotationEffect(.degrees(-10))
-
-            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                .stroke(Color.black, lineWidth: 1.2)
-                .frame(width: 10, height: 13)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .stroke(Color.black, lineWidth: 1.2)
-                    .frame(width: 10, height: 13)
-                Circle()
-                    .fill(Color.black)
-                    .frame(width: 3, height: 3)
-                    .offset(x: 3.5, y: 4.5)
-            }
-            .rotationEffect(.degrees(6))
+            Color.clear
+            
+            MenuBarPaperclipShape()
+                .stroke(
+                    Color.black,
+                    style: StrokeStyle(
+                        lineWidth: 2.2 * scale,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+                .frame(width: 12 * scale, height: 16 * scale)
+                .offset(y: 0.5 * scale)
         }
-        .frame(width: 18, height: 18)
+        .frame(width: size, height: size)
     }
 }
 
@@ -134,8 +280,8 @@ struct IconRenderer {
             print("Wrote \(name).png (\(size)x\(size))")
         }
 
-        for (name, size) in [("MenuBarIcon-18", 18), ("MenuBarIcon-36", 36)] {
-            let image = renderToBitmap(view: MenuBarIconView(), size: NSSize(width: size, height: size))
+        for (name, size) in [("MenuBarIcon-22", 22), ("MenuBarIcon-44", 44)] {
+            let image = renderToBitmap(view: MenuBarIconView(size: CGFloat(size)), size: NSSize(width: size, height: size))
             let data = try pngData(from: image)
             try data.write(to: menuBarSet.appendingPathComponent("\(name).png"))
             print("Wrote \(name).png (\(size)x\(size))")

@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import Darwin
 
 struct GPUAcceleratedGlassView: NSViewRepresentable {
     let cornerRadius: CGFloat
@@ -46,18 +47,39 @@ struct GPUAcceleratedGlassView: NSViewRepresentable {
             let windowFrame = window.frame
             let screenFrame = NSScreen.main?.frame ?? .zero
 
-            // Create image from screen content behind window
-            guard let screenImage = CGWindowListCreateImage(
-                CGRect(x: windowFrame.origin.x, y: screenFrame.height - windowFrame.origin.y - windowFrame.height,
-                       width: windowFrame.width, height: windowFrame.height),
-                .optionOnScreenBelowWindow,
-                CGWindowID(window.windowNumber),
-                .bestResolution
-            ) else {
+            let rect = CGRect(
+                x: windowFrame.origin.x,
+                y: screenFrame.height - windowFrame.origin.y - windowFrame.height,
+                width: windowFrame.width,
+                height: windowFrame.height
+            )
+
+            // Resolve CGWindowListCreateImage dynamically to avoid deprecation warnings in macOS 14+
+            typealias CGWindowListCreateImageFunc = @convention(c) (CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption) -> CGImage?
+            
+            var screenImage: CGImage? = nil
+            let handle = dlopen(nil, RTLD_LAZY)
+            defer { 
+                if let handle = handle {
+                    dlclose(handle)
+                }
+            }
+            
+            if let handle = handle, let sym = dlsym(handle, "CGWindowListCreateImage") {
+                let function = unsafeBitCast(sym, to: CGWindowListCreateImageFunc.self)
+                screenImage = function(
+                    rect,
+                    .optionOnScreenBelowWindow,
+                    CGWindowID(window.windowNumber),
+                    .bestResolution
+                )
+            }
+
+            guard let img = screenImage else {
                 return nil
             }
 
-            return CIImage(cgImage: screenImage)
+            return CIImage(cgImage: img)
         }
 
         private func applyGlassEffect(to image: CIImage) -> CGImage? {

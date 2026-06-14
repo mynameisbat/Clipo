@@ -18,7 +18,9 @@ final class MenuBarController: NSObject {
 
     private func setupButton() {
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Clipo")
+            button.image = NSImage(named: "MenuBarIcon")
+            button.image?.isTemplate = true
+            button.image?.accessibilityDescription = "Clipo"
             button.target = self
             button.action = #selector(togglePanel)
         }
@@ -36,6 +38,24 @@ final class MenuBarController: NSObject {
         )
         openItem.target = self
         menu.addItem(openItem)
+
+        let captureItem = NSMenuItem(
+            title: "Capture Screen",
+            action: #selector(captureScreen),
+            keyEquivalent: "s"
+        )
+        captureItem.keyEquivalentModifierMask = [.command, .option]
+        captureItem.target = self
+        menu.addItem(captureItem)
+
+        let recordItem = NSMenuItem(
+            title: "Record Screen",
+            action: #selector(recordScreen),
+            keyEquivalent: "r"
+        )
+        recordItem.keyEquivalentModifierMask = [.command, .option]
+        recordItem.target = self
+        menu.addItem(recordItem)
 
         menu.addItem(.separator())
 
@@ -58,6 +78,22 @@ final class MenuBarController: NSObject {
         menu.addItem(quitItem)
 
         return menu
+    }
+
+    @objc private func captureScreen() {
+        Task { @MainActor in
+            CaptureService.shared.startCaptureFlow(mode: .image)
+        }
+    }
+
+    @objc private func recordScreen() {
+        Task { @MainActor in
+            if CaptureService.shared.isRecording {
+                CaptureService.shared.stopRecording()
+            } else {
+                CaptureService.shared.startCaptureFlow(mode: .video)
+            }
+        }
     }
 
     func togglePopover() async {

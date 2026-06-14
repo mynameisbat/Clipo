@@ -11,10 +11,13 @@ struct ClipboardRowView: View {
     let isSelected: Bool
     let isCompact: Bool
     let style: ClipboardPopupStyle
+    let searchText: String
     let quickPasteHint: String?
     let onTogglePin: () -> Void
     let onDelete: () -> Void
     let onCopyAsPlainText: () -> Void
+    var onEditImage: (() -> Void)? = nil
+    var onExtractTextOCR: (() -> Void)? = nil
 
     @State private var isHovered = false
     @State private var sourceAppIcon: NSImage?
@@ -26,9 +29,10 @@ struct ClipboardRowView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Rectangle()
+            Capsule()
                 .fill(isSelected ? DT.Color.accent : Color.clear)
-                .frame(width: Appearance.selectedAccentWidth)
+                .frame(width: Appearance.selectedAccentWidth, height: 20)
+                .padding(.leading, 6)
 
             VStack(alignment: .leading, spacing: DT.Spacing.s) {
                 headerRow
@@ -61,11 +65,11 @@ struct ClipboardRowView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: Appearance.radius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: Appearance.radius, style: .continuous))
-        .scaleEffect(isHovered ? 1.005 : 1.0)
-        .animation(.hoverHighlight, value: isHovered)
         .animation(.selection, value: isSelected)
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.hoverHighlight) {
+                isHovered = hovering
+            }
         }
         .task {
             await loadSourceAppIcon()
@@ -75,14 +79,38 @@ struct ClipboardRowView: View {
         }
     }
 
+    private var sourceAppOrKindBadge: some View {
+        Group {
+            if let sourceAppIcon {
+                Image(nsImage: sourceAppIcon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: Appearance.kindBadgeSize, height: Appearance.kindBadgeSize)
+                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.s, style: .continuous))
+            } else {
+                kindBadge
+            }
+        }
+    }
+
     private var headerRow: some View {
         HStack(alignment: .center, spacing: DT.Spacing.s) {
-            kindBadge
+            sourceAppOrKindBadge
 
-            Text(item.title)
+            highlightedText(item.title, query: searchText)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(DT.Color.textPrimary)
                 .lineLimit(1)
+
+            if let badgeColor = parseColor(item.title) {
+                RoundedRectangle(cornerRadius: 3.5)
+                    .fill(badgeColor)
+                    .frame(width: 13, height: 13)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3.5)
+                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                    )
+            }
 
             Spacer(minLength: DT.Spacing.s)
 
@@ -105,53 +133,49 @@ struct ClipboardRowView: View {
     }
 
     private var metadataRow: some View {
-        HStack(spacing: DT.Spacing.xs) {
-            if let sourceAppIcon {
-                Image(nsImage: sourceAppIcon)
-                    .resizable()
-                    .frame(width: 12, height: 12)
-                    .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-                    .accessibilityLabel("Source app: \(item.sourceAppBundleId ?? "Unknown")")
-            }
-
+        HStack(spacing: DT.Spacing.s) {
             Text(relativeTimeText)
-                .font(.system(size: 10))
+                .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundColor(DT.Color.textSecondary)
 
-            if let language = item.metadata.detectedLanguage, language != .unknown {
-                metaSeparator
-                Text(language.displayName)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(DT.Color.textSecondary)
-            }
+            Spacer(minLength: 0)
 
-            if let wordCount = item.metadata.wordCount, wordCount > 0 {
-                metaSeparator
-                Text("\(wordCount) words")
-                    .font(.system(size: 10))
-                    .foregroundColor(DT.Color.textSecondary)
-            }
+            HStack(spacing: DT.Spacing.xxs) {
+                if let pinboard = item.pinboard, !pinboard.isEmpty {
+                    pillBadge(text: pinboard, color: Color.teal)
+                }
 
-            if item.kind == .image, let width = item.metadata.imageWidth, let height = item.metadata.imageHeight {
-                metaSeparator
-                Text("\(width)×\(height)")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(DT.Color.textSecondary)
-            }
+                if let language = item.metadata.detectedLanguage, language != .unknown {
+                    pillBadge(text: language.displayName, color: Color.indigo)
+                }
 
-            if let ext = item.metadata.fileExtension, !ext.isEmpty {
-                metaSeparator
-                Text(ext.uppercased())
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundColor(DT.Color.textSecondary)
+                if let wordCount = item.metadata.wordCount, wordCount > 0 {
+                    pillBadge(text: "\(wordCount) words", color: DT.Color.textSecondary)
+                }
+
+                if item.kind == .image, let width = item.metadata.imageWidth, let height = item.metadata.imageHeight {
+                    pillBadge(text: "\(width)×\(height)", color: DT.Color.accent, design: .monospaced)
+                }
+
+                if let ext = item.metadata.fileExtension, !ext.isEmpty {
+                    pillBadge(text: ext.uppercased(), color: Color.orange, design: .monospaced)
+                }
             }
         }
     }
 
-    private var metaSeparator: some View {
-        Text("\u{00B7}")
-            .font(.system(size: 10))
-            .foregroundColor(DT.Color.textSecondary.opacity(0.6))
+    @ViewBuilder
+    private func pillBadge(text: String, color: Color, design: Font.Design = .default) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold, design: design))
+            .foregroundColor(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.08))
+            .overlay(
+                Capsule().stroke(color.opacity(0.18), lineWidth: 1)
+            )
+            .clipShape(Capsule())
     }
 
     private var kindBadge: some View {
@@ -174,6 +198,23 @@ struct ClipboardRowView: View {
             onCopyAsPlainText()
         } label: {
             Label("Copy as Plain Text", systemImage: "doc.on.doc")
+        }
+
+        if item.kind == .image {
+            if let onEditImage {
+                Button {
+                    onEditImage()
+                } label: {
+                    Label("Edit Image", systemImage: "pencil.and.outline")
+                }
+            }
+            if let onExtractTextOCR {
+                Button {
+                    onExtractTextOCR()
+                } label: {
+                    Label("Extract Text from Image (OCR)", systemImage: "text.viewfinder")
+                }
+            }
         }
 
         Divider()
@@ -218,7 +259,7 @@ struct ClipboardRowView: View {
         if let language = item.metadata.detectedLanguage, language != .unknown {
             codePreview(text, language: language)
         } else {
-            Text(text)
+            highlightedText(text, query: searchText)
                 .font(.system(size: 12))
                 .foregroundColor(DT.Color.textSecondary)
                 .lineLimit(3)
@@ -288,9 +329,9 @@ struct ClipboardRowView: View {
         switch item.kind {
         case .image: return DT.Color.accent
         case .text:
-            return item.metadata.detectedLanguage != .unknown ? Color.purple : DT.Color.textSecondary
-        case .link: return Color.cyan
-        case .file: return Color.green
+            return item.metadata.detectedLanguage != .unknown ? Color.indigo : DT.Color.textSecondary
+        case .link: return Color.blue
+        case .file: return Color.orange
         }
     }
 
@@ -298,13 +339,17 @@ struct ClipboardRowView: View {
     private var kindIcon: some View {
         switch item.kind {
         case .image:
-            Image(systemName: "photo").foregroundColor(DT.Color.accent)
+            Image(systemName: "photo.fill").foregroundColor(DT.Color.accent)
         case .text:
-            Image(systemName: "doc.text").foregroundColor(DT.Color.textSecondary)
+            if item.metadata.detectedLanguage != .unknown {
+                Image(systemName: "terminal.fill").foregroundColor(Color.indigo)
+            } else {
+                Image(systemName: "text.alignleft").foregroundColor(DT.Color.textSecondary)
+            }
         case .link:
-            Image(systemName: "link").foregroundColor(Color.cyan)
+            Image(systemName: "link").foregroundColor(Color.blue)
         case .file:
-            Image(systemName: "doc").foregroundColor(Color.green)
+            Image(systemName: "doc.fill").foregroundColor(Color.orange)
         }
     }
 
@@ -333,6 +378,129 @@ struct ClipboardRowView: View {
 
     private var selectedStroke: Color {
         DT.Color.accent.opacity(0.32)
+    }
+
+    private func parseColor(_ text: String) -> Color? {
+        if let hexColor = parseHexColor(text) {
+            return hexColor
+        }
+        if let rgbColor = parseRgbColor(text) {
+            return rgbColor
+        }
+        return nil
+    }
+
+    private func parseHexColor(_ text: String) -> Color? {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.hasPrefix("#") || cleaned.count == 3 || cleaned.count == 6 || cleaned.count == 8 else { return nil }
+        
+        var hex = cleaned
+        if hex.hasPrefix("#") {
+            hex.removeFirst()
+        }
+        
+        let characterSet = CharacterSet(charactersIn: "0123456789ABCDEFabcdef")
+        guard CharacterSet(charactersIn: hex).isSubset(of: characterSet) else { return nil }
+        guard hex.count == 3 || hex.count == 6 || hex.count == 8 else { return nil }
+        
+        var rgbValue: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&rgbValue)
+        
+        let r, g, b, a: Double
+        if hex.count == 3 {
+            r = Double((rgbValue & 0xF00) >> 8) / 15.0
+            g = Double((rgbValue & 0x0F0) >> 4) / 15.0
+            b = Double(rgbValue & 0x00F) / 15.0
+            a = 1.0
+        } else if hex.count == 6 {
+            r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
+            g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
+            b = Double(rgbValue & 0x0000FF) / 255.0
+            a = 1.0
+        } else if hex.count == 8 {
+            r = Double((rgbValue & 0xFF000000) >> 24) / 255.0
+            g = Double((rgbValue & 0x00FF0000) >> 16) / 255.0
+            b = Double((rgbValue & 0x0000FF00) >> 8) / 255.0
+            a = Double(rgbValue & 0x000000FF) / 255.0
+        } else {
+            return nil
+        }
+        
+        return Color(red: r, green: g, blue: b, opacity: a)
+    }
+
+    private func parseRgbColor(_ text: String) -> Color? {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard cleaned.hasPrefix("rgb") else { return nil }
+        
+        guard let openParen = cleaned.firstIndex(of: "("),
+              let closeParen = cleaned.firstIndex(of: ")"),
+              openParen < closeParen else { return nil }
+              
+        let contentStart = cleaned.index(after: openParen)
+        let content = String(cleaned[contentStart..<closeParen])
+        
+        let parts = content.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard parts.count == 3 || parts.count == 4 else { return nil }
+        
+        func parseComponent(_ part: String, maxVal: Double) -> Double? {
+            if part.hasSuffix("%") {
+                guard let val = Double(part.dropLast()) else { return nil }
+                return (val / 100.0) * maxVal
+            }
+            return Double(part)
+        }
+        
+        guard let r = parseComponent(parts[0], maxVal: 255.0),
+              let g = parseComponent(parts[1], maxVal: 255.0),
+              let b = parseComponent(parts[2], maxVal: 255.0) else { return nil }
+              
+        var alpha: Double = 1.0
+        if parts.count == 4 {
+            if parts[3].hasSuffix("%") {
+                if let val = Double(parts[3].dropLast()) {
+                    alpha = val / 100.0
+                } else {
+                    return nil
+                }
+            } else {
+                guard let val = Double(parts[3]) else { return nil }
+                alpha = val
+            }
+        }
+        
+        return Color(
+            red: max(0.0, min(1.0, r / 255.0)),
+            green: max(0.0, min(1.0, g / 255.0)),
+            blue: max(0.0, min(1.0, b / 255.0)),
+            opacity: max(0.0, min(1.0, alpha))
+        )
+    }
+
+    private func highlightedText(_ text: String, query: String) -> Text {
+        guard !query.isEmpty else { return Text(text) }
+        
+        var result = Text("")
+        let lowercasedText = text.lowercased()
+        let lowercasedQuery = query.lowercased()
+        
+        var currentIndex = text.startIndex
+        while let range = lowercasedText.range(of: lowercasedQuery, range: currentIndex..<text.endIndex) {
+            let prefix = String(text[currentIndex..<range.lowerBound])
+            let match = String(text[range])
+            
+            result = result + Text(prefix)
+            result = result + Text(match)
+                .bold()
+                .foregroundColor(DT.Color.accent)
+            
+            currentIndex = range.upperBound
+        }
+        
+        let suffix = String(text[currentIndex..<text.endIndex])
+        result = result + Text(suffix)
+        
+        return result
     }
 }
 

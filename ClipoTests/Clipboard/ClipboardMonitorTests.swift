@@ -152,6 +152,26 @@ final class ClipboardMonitorTests: XCTestCase {
         XCTAssertEqual(items.count, 1)
         XCTAssertEqual(items.first?.kind, .image)
     }
+
+    func testMonitorIgnoresItemsFromIgnoredApplications() async throws {
+        let sink = RecordingClipboardSink()
+        let monitor = ClipboardMonitor(
+            reader: { _ in ClipboardItem.stub(title: "Secret", contentText: "Secret") },
+            snapshotProvider: { PasteboardSnapshot(strings: ["Secret"], fileURLs: [], imageData: nil, imageFileExtension: nil, sourceAppBundleId: "com.agilebits.onepassword") },
+            sink: sink
+        )
+
+        // Ensure 1Password is ignored
+        IgnoredAppsManager.shared.addIgnoredBundleId("com.agilebits.onepassword")
+        defer {
+            IgnoredAppsManager.shared.removeIgnoredBundleId("com.agilebits.onepassword")
+        }
+
+        try await monitor.processCurrentPasteboard()
+
+        let count = await sink.items.count
+        XCTAssertEqual(count, 0)
+    }
 }
 
 actor RecordingClipboardSink: ClipboardItemSink {

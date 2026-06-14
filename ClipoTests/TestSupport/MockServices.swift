@@ -32,6 +32,24 @@ final class InMemoryClipboardHistoryStore: ClipboardHistoryLoading, @unchecked S
                 sourceAppBundleId: items[index].sourceAppBundleId,
                 createdAt: items[index].createdAt,
                 isPinned: isPinned,
+                pinboard: items[index].pinboard,
+                metadata: items[index].metadata
+            )
+        }
+    }
+
+    func setPinboard(id: UUID, pinboard: String?) async throws {
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            items[index] = ClipboardItem(
+                id: items[index].id,
+                kind: items[index].kind,
+                title: items[index].title,
+                contentText: items[index].contentText,
+                resourcePath: items[index].resourcePath,
+                sourceAppBundleId: items[index].sourceAppBundleId,
+                createdAt: items[index].createdAt,
+                isPinned: items[index].isPinned,
+                pinboard: pinboard,
                 metadata: items[index].metadata
             )
         }
@@ -46,13 +64,46 @@ final class InMemoryClipboardHistoryStore: ClipboardHistoryLoading, @unchecked S
     }
 
     func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
-        Array(items.prefix(limit))
+        return try await recentItems(limit: limit) // Simple fallback for mock
     }
 
     func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
-        items.filter { item in
-            item.title.localizedCaseInsensitiveContains(query) ||
-            (item.contentText?.localizedCaseInsensitiveContains(query) ?? false)
+        return try await search(query: query) // Simple fallback for mock
+    }
+
+    func removePinboard(named name: String) async throws {
+        for index in items.indices {
+            if items[index].pinboard == name {
+                items[index] = ClipboardItem(
+                    id: items[index].id,
+                    kind: items[index].kind,
+                    title: items[index].title,
+                    contentText: items[index].contentText,
+                    resourcePath: items[index].resourcePath,
+                    sourceAppBundleId: items[index].sourceAppBundleId,
+                    createdAt: items[index].createdAt,
+                    isPinned: items[index].isPinned,
+                    pinboard: nil,
+                    metadata: items[index].metadata
+                )
+            }
+        }
+    }
+
+    func updateCreatedAt(id: UUID, date: Date) async throws {
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            items[index] = ClipboardItem(
+                id: items[index].id,
+                kind: items[index].kind,
+                title: items[index].title,
+                contentText: items[index].contentText,
+                resourcePath: items[index].resourcePath,
+                sourceAppBundleId: items[index].sourceAppBundleId,
+                createdAt: date,
+                isPinned: items[index].isPinned,
+                pinboard: items[index].pinboard,
+                metadata: items[index].metadata
+            )
         }
     }
 }
@@ -71,6 +122,12 @@ final class MockPasteService: PasteService, @unchecked Sendable {
     }
 
     func paste(_ item: ClipboardItem) async throws -> PasteResult {
+        _pasteCallCount += 1
+        _lastPastedItem = item
+        return resultToReturn
+    }
+
+    func pasteAsPlainText(_ item: ClipboardItem) async throws -> PasteResult {
         _pasteCallCount += 1
         _lastPastedItem = item
         return resultToReturn

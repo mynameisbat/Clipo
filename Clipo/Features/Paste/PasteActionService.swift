@@ -66,6 +66,18 @@ final class PasteActionService: PasteService, @unchecked Sendable {
         return .pasted
     }
 
+    func pasteAsPlainText(_ item: ClipboardItem) async throws -> PasteResult {
+        try await copyAsPlainText(item)
+        guard permissions.isTrusted else { return .copiedOnly }
+        await targetApplicationActivator.activatePreviousApp()
+        let previousApplicationBundleIdentifier = await MainActor.run {
+            targetApplicationActivator.previousApplicationBundleIdentifier
+        }
+        await sleep(Self.pasteDelayNanoseconds(for: previousApplicationBundleIdentifier))
+        try autoPasteDriver.pasteCurrentClipboard()
+        return .pasted
+    }
+
     func copyAsPlainText(_ item: ClipboardItem) async throws {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
