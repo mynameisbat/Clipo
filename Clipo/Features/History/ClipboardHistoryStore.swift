@@ -390,10 +390,63 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
 
     private static func applyFilters(_ filters: Set<HistoryFilter>, to items: [ClipboardItem]) -> [ClipboardItem] {
         guard !filters.isEmpty else { return items }
-        return items.filter { item in
-            for filter in filters {
-                if !Self.matches(filter: filter, item: item) { return false }
+        
+        var kinds = Set<ClipboardItemKind>()
+        var pinboards = Set<String>()
+        var dateRanges = Set<HistoryFilter.DateRange>()
+        var sourceApps = Set<String>()
+        var requirePinned = false
+        
+        for filter in filters {
+            switch filter {
+            case .kind(let k):
+                kinds.insert(k)
+            case .pinboard(let name):
+                pinboards.insert(name)
+            case .dateRange(let range):
+                dateRanges.insert(range)
+            case .sourceApp(let app):
+                sourceApps.insert(app)
+            case .pinned:
+                requirePinned = true
             }
+        }
+        
+        return items.filter { item in
+            // 1. Kind: OR within group
+            if !kinds.isEmpty {
+                if !kinds.contains(item.kind) { return false }
+            }
+            
+            // 2. Pinboard: OR within group
+            if !pinboards.isEmpty {
+                guard let p = item.pinboard, pinboards.contains(p) else { return false }
+            }
+            
+            // 3. Date range: OR within group
+            if !dateRanges.isEmpty {
+                let matchesDate = dateRanges.contains { range in
+                    Self.isInRange(item.createdAt, range: range)
+                }
+                if !matchesDate { return false }
+            }
+            
+            // 4. Source app: OR within group
+            if !sourceApps.isEmpty {
+                let matchesApp = sourceApps.contains { appQuery in
+                    guard let bundleId = item.sourceAppBundleId else { return false }
+                    let query = appQuery.lowercased()
+                    if bundleId.lowercased().contains(query) { return true }
+                    return getAppName(from: bundleId).lowercased().contains(query)
+                }
+                if !matchesApp { return false }
+            }
+            
+            // 5. Pinned
+            if requirePinned {
+                if !item.isPinned { return false }
+            }
+            
             return true
         }
     }

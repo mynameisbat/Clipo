@@ -395,7 +395,9 @@ struct ClipboardPopupView: View {
                                         onDelete: { Task { await viewModel.deleteItem(at: index) } },
                                         onCopyAsPlainText: { Task { await viewModel.copyAsPlainText(at: index) } },
                                         onEditImage: { Task { await viewModel.editImage(item) } },
-                                        onExtractTextOCR: { Task { await viewModel.performOCR(on: item) } }
+                                        onExtractTextOCR: { Task { await viewModel.performOCR(on: item) } },
+                                        availablePinboards: viewModel.availablePinboards,
+                                        onSetPinboard: { pinboard in Task { await viewModel.setPinboard(for: item, pinboard: pinboard) } }
                                     )
                                 }
                                 .buttonStyle(.plain)

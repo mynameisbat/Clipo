@@ -79,6 +79,133 @@ final class ClipboardPopupViewModelTests: XCTestCase {
         // Then: No crash or memory leak (verified by test completion)
         XCTAssertNil(viewModel)
     }
+
+    // MARK: - Security & Hardening Tests
+
+    @MainActor
+    func testAvailableActionsExcludeTranslateAndShortenForSensitiveItems() async throws {
+        let mockPermissions = MockAccessibilityPermissionService(initialTrusted: true)
+        let mockHistoryStore = MockHistoryStoreForSecurityTests()
+        let mockPasteService = MockPasteServiceForPermissionTests()
+        
+        let sensitiveItem = ClipboardItem.stub(
+            kind: .link,
+            title: "Sensitive link",
+            contentText: "https://example.com/login?password=mysecretpassword123"
+        )
+        await mockHistoryStore.setItems([sensitiveItem])
+        
+        let viewModel = ClipboardPopupViewModel(
+            historyStore: mockHistoryStore,
+            pasteService: mockPasteService,
+            permissions: mockPermissions
+        )
+        
+        await viewModel.load()
+        
+        // Assert sensitive item is selected
+        XCTAssertEqual(viewModel.selectedItem?.id, sensitiveItem.id)
+        
+        let actions = viewModel.availableActions
+        XCTAssertFalse(actions.contains(.translateToVietnamese))
+        XCTAssertFalse(actions.contains(.shortenURL))
+        XCTAssertTrue(actions.contains(.stripTracking))
+        XCTAssertTrue(actions.contains(.openIncognito))
+    }
+
+    @MainActor
+    func testExecuteActionBlocksSensitiveTranslationAndShortening() async throws {
+        let mockPermissions = MockAccessibilityPermissionService(initialTrusted: true)
+        let mockHistoryStore = MockHistoryStoreForSecurityTests()
+        let mockPasteService = MockPasteServiceForPermissionTests()
+        let toastManager = ToastManager()
+        
+        let sensitiveItem = ClipboardItem.stub(
+            kind: .link,
+            title: "Sensitive link",
+            contentText: "https://example.com/login?password=mysecretpassword123"
+        )
+        await mockHistoryStore.setItems([sensitiveItem])
+        
+        let viewModel = ClipboardPopupViewModel(
+            historyStore: mockHistoryStore,
+            pasteService: mockPasteService,
+            permissions: mockPermissions,
+            toastManager: toastManager
+        )
+        
+        await viewModel.load()
+        
+        // Directly try executing actions
+        await viewModel.executeAction(.translateToVietnamese)
+        XCTAssertEqual(toastManager.currentToast?.message, "Cannot translate sensitive text")
+        
+        toastManager.clear()
+        
+        await viewModel.executeAction(.shortenURL)
+        XCTAssertEqual(toastManager.currentToast?.message, "Cannot shorten sensitive URL")
+    }
+
+    @MainActor
+    func testTranslateActionEnforcesCharacterLimit() async throws {
+        let mockPermissions = MockAccessibilityPermissionService(initialTrusted: true)
+        let mockHistoryStore = MockHistoryStoreForSecurityTests()
+        let mockPasteService = MockPasteServiceForPermissionTests()
+        let toastManager = ToastManager()
+        
+        let hugeText = String(repeating: "A", count: 5001)
+        let hugeItem = ClipboardItem.stub(
+            kind: .text,
+            title: "Huge text",
+            contentText: hugeText
+        )
+        await mockHistoryStore.setItems([hugeItem])
+        
+        let viewModel = ClipboardPopupViewModel(
+            historyStore: mockHistoryStore,
+            pasteService: mockPasteService,
+            permissions: mockPermissions,
+            toastManager: toastManager
+        )
+        
+        await viewModel.load()
+        
+        await viewModel.executeAction(.translateToVietnamese)
+        XCTAssertEqual(toastManager.currentToast?.message, "Text too long for translation (max 5000 characters)")
+    }
+}
+
+// MARK: - Mock History Store for Security Tests
+
+private actor MockHistoryStoreForSecurityTests: ClipboardHistoryLoading {
+    var items: [ClipboardItem] = []
+
+    func setItems(_ newItems: [ClipboardItem]) {
+        self.items = newItems
+    }
+
+    func recentItems(limit: Int) async throws -> [ClipboardItem] {
+        return items
+    }
+    
+    func recentItems(limit: Int, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        return items
+    }
+
+    func search(query: String) async throws -> [ClipboardItem] {
+        return items
+    }
+
+    func search(query: String, filters: Set<HistoryFilter>) async throws -> [ClipboardItem] {
+        return items
+    }
+
+    func setPinned(id: UUID, isPinned: Bool) async throws {}
+    func setPinboard(id: UUID, pinboard: String?) async throws {}
+    func removePinboard(named name: String) async throws {}
+    func delete(id: UUID) async throws {}
+    func clearHistory() async throws {}
+    func updateCreatedAt(id: UUID, date: Date) async throws {}
 }
 
 // MARK: - Mock Services for Permission Tests

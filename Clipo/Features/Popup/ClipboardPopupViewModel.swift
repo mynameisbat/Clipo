@@ -28,6 +28,10 @@ enum ClipboardAction: Identifiable, Sendable, Hashable, Equatable {
     case removeFromPinboard
     case delete
     case mergeStack
+    case translateToVietnamese
+    case shortenURL
+    case stripTracking
+    case openIncognito
     
     var id: String {
         switch self {
@@ -61,6 +65,10 @@ enum ClipboardAction: Identifiable, Sendable, Hashable, Equatable {
         case .removeFromPinboard: return "Remove from Pinboard"
         case .delete: return "Delete"
         case .mergeStack: return "Merge Paste Stack Items"
+        case .translateToVietnamese: return "Translate to Vietnamese"
+        case .shortenURL: return "Shorten URL (TinyURL)"
+        case .stripTracking: return "Strip URL Tracking Parameters"
+        case .openIncognito: return "Open in Incognito Mode"
         }
     }
     
@@ -89,6 +97,10 @@ enum ClipboardAction: Identifiable, Sendable, Hashable, Equatable {
         case .removeFromPinboard: return "folder.badge.minus"
         case .delete: return "trash"
         case .mergeStack: return "square.stack.3d.up.fill"
+        case .translateToVietnamese: return "character.book.closed.fill"
+        case .shortenURL: return "link.badge.minus"
+        case .stripTracking: return "wand.and.stars"
+        case .openIncognito: return "eye.slash.circle.fill"
         }
     }
 
@@ -436,6 +448,12 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         }
     }
 
+    private func isValidURL(_ string: String?) -> Bool {
+        guard let string = string?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+        guard let url = URL(string: string), url.scheme != nil else { return false }
+        return url.scheme == "http" || url.scheme == "https"
+    }
+
     var availableActions: [ClipboardAction] {
         guard let item = selectedItem else { return [] }
         var actions: [ClipboardAction] = []
@@ -456,6 +474,21 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         if item.kind == .text || item.kind == .link {
             actions.insert(.paste, at: 0)
             actions.insert(.copyPlainText, at: 1)
+            
+            // Premium Quick Actions (disabled for sensitive content to prevent data leakage)
+            if !item.isSensitive {
+                actions.append(.translateToVietnamese)
+            }
+            
+            let contentText = item.contentText ?? ""
+            if item.kind == .link || isValidURL(contentText) {
+                if !item.isSensitive {
+                    actions.append(.shortenURL)
+                }
+                actions.append(.stripTracking)
+                actions.append(.openIncognito)
+            }
+            
             actions.append(.uppercase)
             actions.append(.lowercase)
             actions.append(.titleCase)
@@ -619,6 +652,54 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
             }
         case .mergeStack:
             await mergeStackItems()
+        case .translateToVietnamese:
+            if let text = item.contentText {
+                if item.isSensitive {
+                    toastManager.show(.error("Cannot translate sensitive text"))
+                    return
+                }
+                if text.count > 5000 {
+                    toastManager.show(.error("Text too long for translation (max 5000 characters)"))
+                    return
+                }
+                toastManager.show(.info("Translating..."))
+                do {
+                    let translated = try await translateText(text, to: "vi")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(translated, forType: .string)
+                    toastManager.show(.success("Translated & copied to clipboard"))
+                } catch {
+                    toastManager.show(.error("Translation failed: \(error.localizedDescription)"))
+                }
+            }
+        case .shortenURL:
+            if let urlString = item.contentText {
+                if item.isSensitive {
+                    toastManager.show(.error("Cannot shorten sensitive URL"))
+                    return
+                }
+                toastManager.show(.info("Shortening URL..."))
+                do {
+                    let shortened = try await shortenURL(urlString)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(shortened, forType: .string)
+                    toastManager.show(.success("Shortened URL copied to clipboard"))
+                } catch {
+                    toastManager.show(.error("Shortening failed: \(error.localizedDescription)"))
+                }
+            }
+        case .stripTracking:
+            if let urlString = item.contentText {
+                let stripped = stripTrackingParameters(from: urlString)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(stripped, forType: .string)
+                toastManager.show(.success("Clean URL copied to clipboard"))
+            }
+        case .openIncognito:
+            if let urlString = item.contentText,
+               let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                openURLInIncognito(url)
+            }
         }
     }
 
@@ -784,15 +865,19 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         return lines.joined(separator: " ")
     }
  
-    private func setPinboardForSelected(_ name: String?) async {
-        guard let item = selectedItem else { return }
-        try? await historyStore.setPinboard(id: item.id, pinboard: name)
+    func setPinboard(for item: ClipboardItem, pinboard: String?) async {
+        try? await historyStore.setPinboard(id: item.id, pinboard: pinboard)
         await load()
-        if let name = name {
-            toastManager.show(.success("Moved to '\(name)'"))
+        if let pinboard = pinboard {
+            toastManager.show(.success("Moved to '\(pinboard)'"))
         } else {
             toastManager.show(.success("Removed from Pinboard"))
         }
+    }
+
+    private func setPinboardForSelected(_ name: String?) async {
+        guard let item = selectedItem else { return }
+        await setPinboard(for: item, pinboard: name)
     }
  
     private func applyVisibleItems() {
@@ -801,6 +886,132 @@ final class ClipboardPopupViewModel: ObservableObject, ClipboardPopupLoading {
         if visibleItems.isEmpty {
             isQuickLookVisible = false
             isActionMenuVisible = false
+        }
+    }
+
+    private func translateText(_ text: String, to language: String) async throws -> String {
+        var components = URLComponents(string: "https://translate.googleapis.com/translate_a/single")!
+        components.queryItems = [
+            URLQueryItem(name: "client", value: "gtx"),
+            URLQueryItem(name: "sl", value: "auto"),
+            URLQueryItem(name: "tl", value: language),
+            URLQueryItem(name: "dt", value: "t"),
+            URLQueryItem(name: "q", value: text)
+        ]
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 6.0
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [Any],
+              let sentences = json.first as? [Any] else {
+            throw URLError(.cannotParseResponse)
+        }
+        
+        var result = ""
+        for sentence in sentences {
+            if let sentenceArray = sentence as? [Any],
+               let translatedPart = sentenceArray.first as? String {
+                result += translatedPart
+            }
+        }
+        
+        if result.isEmpty {
+            throw URLError(.cannotParseResponse)
+        }
+        return result
+    }
+
+    private func shortenURL(_ originalURL: String) async throws -> String {
+        var components = URLComponents(string: "https://tinyurl.com/api-create.php")!
+        components.queryItems = [URLQueryItem(name: "url", value: originalURL)]
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 6.0
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        
+        guard let result = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !result.isEmpty else {
+            throw URLError(.cannotParseResponse)
+        }
+        
+        if result.lowercased().hasPrefix("error") {
+            throw URLError(.badServerResponse)
+        }
+        return result
+    }
+
+    private func stripTrackingParameters(from urlString: String) -> String {
+        guard let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            return urlString
+        }
+        
+        guard let queryItems = components.queryItems else {
+            return urlString
+        }
+        
+        let trackingKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "si", "fbclid", "gclid", "ref", "referrer"]
+        let cleanedItems = queryItems.filter { item in
+            !trackingKeys.contains(item.name.lowercased()) && !item.name.lowercased().hasPrefix("utm_")
+        }
+        
+        components.queryItems = cleanedItems.isEmpty ? nil : cleanedItems
+        return components.url?.absoluteString ?? urlString
+    }
+
+    private func openURLInIncognito(_ url: URL) {
+        guard url.scheme == "http" || url.scheme == "https" else {
+            toastManager.show(.error("Only HTTP/HTTPS URLs are supported for Incognito Mode"))
+            return
+        }
+        
+        guard let defaultBrowserURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        
+        let bundleId = Bundle(url: defaultBrowserURL)?.bundleIdentifier ?? ""
+        
+        if bundleId.contains("safari") {
+            toastManager.show(.warning("Safari does not support direct incognito. Opened in normal tab."))
+            NSWorkspace.shared.open(url)
+            return
+        }
+        
+        let config = NSWorkspace.OpenConfiguration()
+        
+        if bundleId.contains("chrome") {
+            config.arguments = ["--incognito"]
+        } else if bundleId.contains("firefox") {
+            config.arguments = ["--private-window"]
+        } else if bundleId.contains("msedge") {
+            config.arguments = ["-inprivate"]
+        }
+        
+        NSWorkspace.shared.open([url], withApplicationAt: defaultBrowserURL, configuration: config) { _, error in
+            if let error = error {
+                print("Failed to open incognito: \(error.localizedDescription)")
+                Task { @MainActor in
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 }

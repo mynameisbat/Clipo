@@ -98,6 +98,28 @@ final class ClipboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(filtered.map(\.title), ["Template item"])
     }
 
+    func testSmartFilterGroupingORAndAND() async throws {
+        let store = try makeStore()
+        
+        try await store.insert(.stub(kind: .text, title: "Template 1", pinboard: "Templates"))
+        try await store.insert(.stub(kind: .text, title: "Email 1", pinboard: "Emails"))
+        try await store.insert(.stub(kind: .text, title: "Code 1", pinboard: "Code"))
+        try await store.insert(.stub(kind: .image, title: "Image 1", pinboard: "Code"))
+        try await store.insert(.stub(kind: .text, title: "Regular Text", pinboard: nil))
+        
+        // 1. Multiple Pinboards: should OR them (Templates OR Emails)
+        let pinboardsFilter = try await store.recentItems(limit: 10, filters: [.pinboard("Templates"), .pinboard("Emails")])
+        XCTAssertEqual(Set(pinboardsFilter.map(\.title)), ["Template 1", "Email 1"])
+        
+        // 2. Pinboard and Kind: should AND them (Text AND (Code OR Templates))
+        let kindAndPinboardFilter = try await store.recentItems(limit: 10, filters: [.kind(.text), .pinboard("Code"), .pinboard("Templates")])
+        XCTAssertEqual(Set(kindAndPinboardFilter.map(\.title)), ["Template 1", "Code 1"])
+        
+        // 3. Kind OR kind AND pinboard ((Text OR Image) AND Code)
+        let kindsAndPinboard = try await store.recentItems(limit: 10, filters: [.kind(.text), .kind(.image), .pinboard("Code")])
+        XCTAssertEqual(Set(kindsAndPinboard.map(\.title)), ["Code 1", "Image 1"])
+    }
+
     private func makeStore() throws -> ClipboardHistoryStore {
         let database = try AppDatabase.inMemory()
         return ClipboardHistoryStore(writer: database.writer, retentionDaysProvider: { nil })

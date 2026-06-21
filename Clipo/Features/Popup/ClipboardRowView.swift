@@ -18,6 +18,8 @@ struct ClipboardRowView: View {
     let onCopyAsPlainText: () -> Void
     var onEditImage: (() -> Void)? = nil
     var onExtractTextOCR: (() -> Void)? = nil
+    var availablePinboards: [String] = []
+    var onSetPinboard: (String?) -> Void = { _ in }
 
     @State private var isHovered = false
     @State private var sourceAppIcon: NSImage?
@@ -237,7 +239,24 @@ struct ClipboardRowView: View {
             }
         }
 
-        Divider()
+        if !availablePinboards.isEmpty || item.pinboard != nil {
+            Menu("Move to Pinboard") {
+                if item.pinboard != nil {
+                    Button("Remove from Pinboard") {
+                        onSetPinboard(nil)
+                    }
+                    Divider()
+                }
+                ForEach(availablePinboards, id: \.self) { name in
+                    if item.pinboard != name {
+                        Button(name) {
+                            onSetPinboard(name)
+                        }
+                    }
+                }
+            }
+            Divider()
+        }
 
         Button(role: .destructive) {
             onDelete()
