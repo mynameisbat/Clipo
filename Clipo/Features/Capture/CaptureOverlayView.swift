@@ -38,7 +38,8 @@ struct CaptureOverlayView: View {
             let globalCGFrame = hoveredWindow.bounds
             // Convert CG global to CG local to this screen
             let localX = globalCGFrame.origin.x - screenFrame.origin.x
-            let localY = globalCGFrame.origin.y - (NSScreen.screens.first?.frame.height ?? 0 - screenFrame.origin.y - screenFrame.height)
+            let rootScreenHeight = NSScreen.screens.first?.frame.height ?? 0
+            let localY = globalCGFrame.origin.y - (rootScreenHeight - screenFrame.origin.y - screenFrame.height)
             
             return CGRect(
                 x: localX,

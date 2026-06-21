@@ -192,7 +192,7 @@ struct CaptureEditorView: View {
                                         .font(.system(size: element.fontSize, weight: .bold, design: .rounded))
                                         .foregroundColor(element.color)
                                         .fixedSize()
-                                        .position(x: element.start.x, y: element.start.y)
+                                        .offset(x: element.start.x + 4, y: element.start.y + 4)
                                 }
                             }
                             
@@ -223,7 +223,7 @@ struct CaptureEditorView: View {
                                             .stroke(strokeColor, lineWidth: 1)
                                             .background(Color.black.opacity(0.65))
                                     )
-                                    .position(x: pos.x + 100, y: pos.y)
+                                    .offset(x: pos.x, y: pos.y)
                                     .onSubmit {
                                         commitText()
                                     }
@@ -707,7 +707,7 @@ struct ExportContainerView: View {
                             .font(.system(size: element.fontSize, weight: .bold, design: .rounded))
                             .foregroundColor(element.color)
                             .fixedSize()
-                            .position(x: element.start.x, y: element.start.y)
+                            .offset(x: element.start.x + 4, y: element.start.y + 4)
                     }
                 }
             }

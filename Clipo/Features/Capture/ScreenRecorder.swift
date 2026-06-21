@@ -168,12 +168,6 @@ final class ScreenRecorder: NSObject, @unchecked Sendable {
         } else {
             shouldStopAsap = true
         }
-        
-        if recordSystemAudio {
-            Task { @MainActor in
-                _ = try? await self.systemAudioRecorder?.stopRecording()
-            }
-        }
     }
 }
 

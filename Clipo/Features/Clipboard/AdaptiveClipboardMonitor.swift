@@ -11,7 +11,7 @@ actor AdaptiveClipboardMonitor {
 
     private let clipboardMonitor: AdaptiveClipboardMonitorable
     private let activityDetector: ActivityLevelDetector
-    private var timer: Timer?
+    @MainActor private var timer: Timer?
     private var currentLevel: ActivityLevel = .active
     private var intervalCallback: IntervalCallback?
     private var isPaused: Bool = false
@@ -52,8 +52,7 @@ actor AdaptiveClipboardMonitor {
     }
 
     func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
+        invalidateTimer()
         transitionTask?.cancel()
         transitionTask = nil
     }
@@ -77,8 +76,7 @@ actor AdaptiveClipboardMonitor {
         // Update timer
         if level == .sleeping || isPaused {
             // Pause monitoring
-            timer?.invalidate()
-            timer = nil
+            invalidateTimer()
         } else {
             restartTimer(with: targetInterval)
         }
@@ -88,8 +86,7 @@ actor AdaptiveClipboardMonitor {
         guard paused != isPaused else { return }
         isPaused = paused
         if paused {
-            timer?.invalidate()
-            timer = nil
+            invalidateTimer()
         } else {
             restartTimer(with: currentInterval)
         }
@@ -149,13 +146,20 @@ actor AdaptiveClipboardMonitor {
         }
     }
 
+    private func invalidateTimer() {
+        Task { @MainActor in
+            self.timer?.invalidate()
+            self.timer = nil
+        }
+    }
+
     private func restartTimer(with interval: TimeInterval) {
         // Invalidate existing timer
-        timer?.invalidate()
+        invalidateTimer()
 
         // Create new timer on main thread
         let clipboardMonitor = self.clipboardMonitor
-        Task { @MainActor [weak self] in
+        Task { @MainActor in
             let newTimer = Timer.scheduledTimer(
                 withTimeInterval: interval,
                 repeats: true
@@ -164,12 +168,8 @@ actor AdaptiveClipboardMonitor {
                     try? await clipboardMonitor.processCurrentPasteboard()
                 }
             }
-            await self?.setTimer(newTimer)
+            self.timer = newTimer
         }
-    }
-
-    private func setTimer(_ newTimer: Timer) {
-        timer = newTimer
     }
 }
 
