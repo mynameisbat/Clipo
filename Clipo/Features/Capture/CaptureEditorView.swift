@@ -236,36 +236,31 @@ struct CaptureEditorView: View {
                             x: 0,
                             y: shadowRadius / 2
                         )
-                        .padding(selectedBackground == .none ? 0 : padding)
+                        .contentShape(Rectangle()) // Make the whole image area interactive
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
                                     guard activeTool != .none else { return }
                                     
-                                    // Adjust points depending on whether background is enabled
                                     let location = value.location
-                                    let adjustedLocation = selectedBackground == .none ? location : CGPoint(
-                                        x: location.x - padding,
-                                        y: location.y - padding
-                                    )
                                     
                                     if activeTool == .text {
                                         if textEditingPosition != nil {
                                             commitText()
                                         }
-                                        textEditingPosition = adjustedLocation
+                                        textEditingPosition = location
                                         textInput = ""
                                         isTextFieldFocused = true
                                         return
                                     }
                                     
                                     if dragStartPoint == nil {
-                                        dragStartPoint = adjustedLocation
+                                        dragStartPoint = location
                                     }
-                                    dragEndPoint = adjustedLocation
+                                    dragEndPoint = location
                                     
                                     if activeTool == .pen {
-                                        currentPoints.append(adjustedLocation)
+                                        currentPoints.append(location)
                                     }
                                 }
                                 .onEnded { _ in
@@ -273,14 +268,19 @@ struct CaptureEditorView: View {
                                           let start = dragStartPoint,
                                           let end = dragEndPoint else { return }
                                     
-                                    let element = AnnotationElement(
-                                        tool: activeTool,
-                                        start: start,
-                                        end: end,
-                                        points: currentPoints,
-                                        color: strokeColor
-                                    )
-                                    annotations.append(element)
+                                    // Ignore tiny accidental drags (less than 4 pixels) to prevent broken markup
+                                    let dx = end.x - start.x
+                                    let dy = end.y - start.y
+                                    if sqrt(dx*dx + dy*dy) > 4 {
+                                        let element = AnnotationElement(
+                                            tool: activeTool,
+                                            start: start,
+                                            end: end,
+                                            points: currentPoints,
+                                            color: strokeColor
+                                        )
+                                        annotations.append(element)
+                                    }
                                     
                                     // Reset active states
                                     dragStartPoint = nil
@@ -288,6 +288,7 @@ struct CaptureEditorView: View {
                                     currentPoints = []
                                 }
                         )
+                        .padding(selectedBackground == .none ? 0 : padding)
                     }
                     
                     Spacer()

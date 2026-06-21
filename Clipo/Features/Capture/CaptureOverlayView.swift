@@ -430,9 +430,15 @@ struct OverlayMaskShape: Shape {
         var path = Path()
         // Entire display bounds
         path.addRect(rect)
-        // Selection rect cut out
+        // Selection rect cut out (flipped from AppKit bottom-left to SwiftUI top-left coords)
         if let sel = selectionRect {
-            path.addRect(sel)
+            let flipped = CGRect(
+                x: sel.origin.x,
+                y: rect.height - sel.maxY,
+                width: sel.width,
+                height: sel.height
+            )
+            path.addRect(flipped)
         }
         return path
     }
