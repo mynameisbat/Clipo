@@ -207,7 +207,7 @@ struct CaptureOverlayView: View {
                         )
                         .position(
                             x: min(max(selection.midX, 100), geometry.size.width - 100),
-                            y: geometry.size.height - (selection.minY - 30) > 10 ?
+                            y: selection.minY > 50 ?
                                 geometry.size.height - (selection.minY - 30) :
                                 geometry.size.height - (selection.maxY + 30)
                         )
@@ -276,7 +276,7 @@ struct CaptureOverlayView: View {
                         )
                         .position(
                             x: min(max(selection.midX, 100), geometry.size.width - 100),
-                            y: geometry.size.height - (selection.minY - 30) > 10 ?
+                            y: selection.minY > 50 ?
                                 geometry.size.height - (selection.minY - 30) :
                                 geometry.size.height - (selection.maxY + 30)
                         )
