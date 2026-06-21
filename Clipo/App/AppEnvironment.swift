@@ -19,9 +19,32 @@ final class AppEnvironment: ObservableObject {
     private var monitorTimer: Timer? // Deprecated: Replaced by adaptiveMonitor
 
     init() {
-        let supportRoot = try! ApplicationPaths.applicationSupportRoot()
+        let supportRoot: URL
+        do {
+            supportRoot = try ApplicationPaths.applicationSupportRoot()
+        } catch {
+            print("CRITICAL: Failed to resolve Application Support directory: \(error)")
+            supportRoot = FileManager.default.temporaryDirectory
+        }
+        
         let databaseURL = supportRoot.appendingPathComponent("clipboard.sqlite")
-        let database = try! AppDatabase.live(at: databaseURL)
+        var database: AppDatabase
+        do {
+            database = try AppDatabase.live(at: databaseURL)
+        } catch {
+            print("Failed to initialize database queue: \(error). Attempting recovery.")
+            let corruptBackupURL = supportRoot.appendingPathComponent("clipboard.sqlite.corrupt")
+            try? FileManager.default.removeItem(at: corruptBackupURL)
+            try? FileManager.default.moveItem(at: databaseURL, to: corruptBackupURL)
+            
+            do {
+                database = try AppDatabase.live(at: databaseURL)
+            } catch {
+                print("Failed to recover database: \(error). Falling back to in-memory store.")
+                database = (try? AppDatabase.inMemory()) ?? AppDatabase.emptyInMemory()
+            }
+        }
+        
         let historyStore = ClipboardHistoryStore(writer: database.writer)
         let permissions = AccessibilityPermissionService()
         let targetApplicationActivator = PreviousApplicationActivator()

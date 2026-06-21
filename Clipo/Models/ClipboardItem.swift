@@ -173,4 +173,70 @@ extension ClipboardItem {
             metadata: metadata
         )
     }
+
+    var isSensitive: Bool {
+        guard let text = contentText else { return false }
+        
+        let creditCardRegex = try? NSRegularExpression(pattern: "\\b(?:\\d[ -]?){13,16}\\b", options: [])
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        if let cardMatch = creditCardRegex?.firstMatch(in: text, options: [], range: range), cardMatch.range.length > 0 {
+            return true
+        }
+        
+        let sensitiveKeywordsRegex = try? NSRegularExpression(
+            pattern: "(?i)(password|passwd|passcode|secret|api_key|apikey|private_key|token|auth_token)\\s*[:=]\\s*[\"']?[a-zA-Z0-9_\\-\\.+=]{6,}[\"']?",
+            options: []
+        )
+        if let keywordMatch = sensitiveKeywordsRegex?.firstMatch(in: text, options: [], range: range), keywordMatch.range.length > 0 {
+            return true
+        }
+        
+        return false
+    }
+    
+    var maskedText: String? {
+        guard let text = contentText else { return nil }
+        guard isSensitive else { return text }
+        
+        var masked = text
+        
+        if let creditCardRegex = try? NSRegularExpression(pattern: "\\b(?:\\d[ -]?){13,16}\\b", options: []) {
+            let matches = creditCardRegex.matches(in: masked, options: [], range: NSRange(masked.startIndex..<masked.endIndex, in: masked))
+            for match in matches.reversed() {
+                if let r = Range(match.range, in: masked) {
+                    let rawCard = String(masked[r])
+                    let digitsOnly = rawCard.filter { $0.isNumber }
+                    let last4 = String(digitsOnly.suffix(4))
+                    let maskedCard = "•••• •••• •••• " + last4
+                    masked.replaceSubrange(r, with: maskedCard)
+                }
+            }
+        }
+        
+        if let sensitiveKeywordsRegex = try? NSRegularExpression(
+            pattern: "(?i)(password|passwd|passcode|secret|api_key|apikey|private_key|token|auth_token)\\s*([:=])\\s*([\"']?)([a-zA-Z0-9_\\-\\.+=]{6,})([\"']?)",
+            options: []
+        ) {
+            let matches = sensitiveKeywordsRegex.matches(in: masked, options: [], range: NSRange(masked.startIndex..<masked.endIndex, in: masked))
+            for match in matches.reversed() {
+                if match.numberOfRanges >= 5 {
+                    let valRange = match.range(at: 4)
+                    if let r = Range(valRange, in: masked) {
+                        let len = valRange.length
+                        let maskStr = String(repeating: "•", count: min(16, len))
+                        masked.replaceSubrange(r, with: maskStr)
+                    }
+                }
+            }
+        }
+        
+        return masked
+    }
+    
+    var maskedTitle: String {
+        if isSensitive, let masked = maskedText {
+            return String(masked.prefix(80))
+        }
+        return title
+    }
 }

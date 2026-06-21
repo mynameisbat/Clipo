@@ -68,6 +68,8 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, @unchecked Sendable {
         }
         
         if let activeStream = activeStream {
+            try? activeStream.removeStreamOutput(self, type: .audio)
+            try? activeStream.removeStreamOutput(self, type: .screen)
             try? await activeStream.stopCapture()
         }
         
@@ -200,20 +202,23 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, @unchecked Sendable {
         
         // 3. Add System Audio Track (if provided)
         if let systemAudioURL = systemAudioURL {
-            let systemAudioAsset = AVAsset(url: systemAudioURL)
-            let systemAudioTracks = try await systemAudioAsset.loadTracks(withMediaType: .audio)
-            if let systemAudioTrack = systemAudioTracks.first {
-                let compositionSystemAudioTrack = mixComposition.addMutableTrack(
-                    withMediaType: .audio,
-                    preferredTrackID: kCMPersistentTrackID_Invalid
-                )
-                let systemAudioDuration = try await systemAudioAsset.load(.duration)
-                let minDuration = min(duration, systemAudioDuration)
-                try compositionSystemAudioTrack?.insertTimeRange(
-                    CMTimeRange(start: .zero, duration: minDuration),
-                    of: systemAudioTrack,
-                    at: .zero
-                )
+            let systemAssetSize = (try? FileManager.default.attributesOfItem(atPath: systemAudioURL.path)[.size] as? UInt64) ?? 0
+            if systemAssetSize > 0 {
+                let systemAudioAsset = AVAsset(url: systemAudioURL)
+                let systemAudioTracks = try await systemAudioAsset.loadTracks(withMediaType: .audio)
+                if let systemAudioTrack = systemAudioTracks.first {
+                    let compositionSystemAudioTrack = mixComposition.addMutableTrack(
+                        withMediaType: .audio,
+                        preferredTrackID: kCMPersistentTrackID_Invalid
+                    )
+                    let systemAudioDuration = try await systemAudioAsset.load(.duration)
+                    let minDuration = min(duration, systemAudioDuration)
+                    try compositionSystemAudioTrack?.insertTimeRange(
+                        CMTimeRange(start: .zero, duration: minDuration),
+                        of: systemAudioTrack,
+                        at: .zero
+                    )
+                }
             }
         }
         

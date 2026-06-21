@@ -34,6 +34,10 @@ enum ShortcutName {
         "screenRecording",
         default: .init(.r, modifiers: [.command, .option])
     )
+    nonisolated(unsafe) static let screenScrollingCapture = KeyboardShortcuts.Name(
+        "screenScrollingCapture",
+        default: .init(.p, modifiers: [.command, .option])
+    )
 
     nonisolated(unsafe) static let quickPaste1 = KeyboardShortcuts.Name("quickPaste1", default: .init(.one, modifiers: [.command]))
     nonisolated(unsafe) static let quickPaste2 = KeyboardShortcuts.Name("quickPaste2", default: .init(.two, modifiers: [.command]))
@@ -62,10 +66,12 @@ final class GlobalHotkeyService {
         case quickPaste(Int)
         case screenCapture
         case screenRecording
+        case screenScrollingCapture
     }
 
     private var screenCaptureHandler: (() -> Void)?
     private var screenRecordingHandler: (() -> Void)?
+    private var screenScrollingCaptureHandler: (() -> Void)?
 
     private var togglePopupHandler: (() -> Void)?
     private var openPastePickerHandler: (() -> Void)?
@@ -84,6 +90,7 @@ final class GlobalHotkeyService {
         restoreDefaultIfNeeded(ShortcutName.sequentialPaste)
         restoreDefaultIfNeeded(ShortcutName.screenCapture)
         restoreDefaultIfNeeded(ShortcutName.screenRecording)
+        restoreDefaultIfNeeded(ShortcutName.screenScrollingCapture)
         for name in ShortcutName.quickPasteNames {
             restoreDefaultIfNeeded(name)
         }
@@ -140,6 +147,11 @@ final class GlobalHotkeyService {
         registerShortcut(ShortcutName.screenRecording, action: .screenRecording)
     }
 
+    func registerScreenScrollingCapture(handler: @escaping () -> Void) {
+        screenScrollingCaptureHandler = handler
+        registerShortcut(ShortcutName.screenScrollingCapture, action: .screenScrollingCapture)
+    }
+
     func registerQuickPaste(at index: Int, handler: @escaping () -> Void) {
         guard index >= 1, index <= 9 else { return }
         quickPasteHandlers[index] = handler
@@ -180,6 +192,10 @@ final class GlobalHotkeyService {
 
         if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.screenRecording) {
             return .screenRecording
+        }
+
+        if shortcut == KeyboardShortcuts.Shortcut(name: ShortcutName.screenScrollingCapture) {
+            return .screenScrollingCapture
         }
 
         for (index, name) in ShortcutName.quickPasteNames.enumerated() {
@@ -234,6 +250,8 @@ final class GlobalHotkeyService {
             screenCaptureHandler?()
         case .screenRecording:
             screenRecordingHandler?()
+        case .screenScrollingCapture:
+            screenScrollingCaptureHandler?()
         }
     }
 

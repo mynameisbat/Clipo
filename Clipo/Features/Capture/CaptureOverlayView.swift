@@ -112,9 +112,23 @@ struct CaptureOverlayView: View {
 
                 // Help instructions pill at top center
                 HStack(spacing: 8) {
-                    Image(systemName: mode == .video ? "video.circle" : "camera.viewfinder")
+                    let iconName: String = {
+                        switch mode {
+                        case .video: return "video.circle"
+                        case .scrolling: return "arrow.up.and.down.circle"
+                        default: return "camera.viewfinder"
+                        }
+                    }()
+                    let helpText: String = {
+                        switch mode {
+                        case .video: return "Select video recording area. Esc to cancel."
+                        case .scrolling: return "Select scrollable area to capture. Esc to cancel."
+                        default: return "Click window or drag area to capture. Esc to cancel."
+                        }
+                    }()
+                    Image(systemName: iconName)
                         .foregroundColor(DT.Color.accent)
-                    Text(mode == .video ? "Select video recording area. Esc to cancel." : "Click window or drag area to capture. Esc to cancel.")
+                    Text(helpText)
                         .foregroundColor(DT.Color.textPrimary)
                 }
                 .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -143,76 +157,130 @@ struct CaptureOverlayView: View {
                     )
                 }
 
-                // Floating Recording HUD (Video Mode)
+                // Floating Recording HUD (Video Mode or Scrolling Mode)
                 if isSelected, let selection = currentSelectionRect {
-                    HStack(spacing: 14) {
-                        Button {
-                            requestPermissionsThenRecord(selection: selection)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.red)
-                                    .frame(width: 8, height: 8)
-                                Text("Record")
-                                    .font(.system(size: 11, weight: .bold))
+                    if mode == .scrolling {
+                        HStack(spacing: 14) {
+                            Button {
+                                Task { @MainActor in
+                                    onCancelled()
+                                    await CaptureScrollingService.shared.startScrollingCapture(rect: selection, on: screen)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.and.down.circle.fill")
+                                        .font(.system(size: 12))
+                                    Text("Chụp cuộn")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(DT.Color.accent)
+                                .cornerRadius(6)
                             }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.red.opacity(0.25))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.red, lineWidth: 1))
-                            .cornerRadius(6)
+                            .buttonStyle(.plain)
+
+                            Button {
+                                isSelected = false
+                                onCancelled()
+                            } label: {
+                                Text("Cancel")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(DT.Color.textPrimary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.08))
+                                    .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        
-                        Toggle(isOn: $includeMic) {
-                            Image(systemName: includeMic ? "mic.fill" : "mic.slash.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(includeMic ? DT.Color.accent : DT.Color.textSecondary)
-                        }
-                        .toggleStyle(.button)
-                        .buttonStyle(.plain)
-                        .help("Record microphone input")
-                        
-                        Toggle(isOn: $includeSystemAudio) {
-                            Image(systemName: includeSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(includeSystemAudio ? DT.Color.accent : DT.Color.textSecondary)
-                        }
-                        .toggleStyle(.button)
-                        .buttonStyle(.plain)
-                        .help("Record system audio")
-                        
-                        Button {
-                            isSelected = false
-                            onCancelled()
-                        } label: {
-                            Text("Cancel")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(DT.Color.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(DT.Color.surfaceElevated.opacity(0.95))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(DT.Color.stroke, lineWidth: 1)
+                        )
+                        .position(
+                            x: min(max(selection.midX, 100), geometry.size.width - 100),
+                            y: geometry.size.height - (selection.minY - 30) > 10 ?
+                                geometry.size.height - (selection.minY - 30) :
+                                geometry.size.height - (selection.maxY + 30)
+                        )
+                    } else {
+                        HStack(spacing: 14) {
+                            Button {
+                                requestPermissionsThenRecord(selection: selection)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 8, height: 8)
+                                    Text("Record")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(.white)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.08))
+                                .background(Color.red.opacity(0.25))
+                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.red, lineWidth: 1))
                                 .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Toggle(isOn: $includeMic) {
+                                Image(systemName: includeMic ? "mic.fill" : "mic.slash.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(includeMic ? DT.Color.accent : DT.Color.textSecondary)
+                            }
+                            .toggleStyle(.button)
+                            .buttonStyle(.plain)
+                            .help("Record microphone input")
+                            
+                            Toggle(isOn: $includeSystemAudio) {
+                                Image(systemName: includeSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(includeSystemAudio ? DT.Color.accent : DT.Color.textSecondary)
+                            }
+                            .toggleStyle(.button)
+                            .buttonStyle(.plain)
+                            .help("Record system audio")
+                            
+                            Button {
+                                isSelected = false
+                                onCancelled()
+                            } label: {
+                                Text("Cancel")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(DT.Color.textPrimary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.08))
+                                    .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(DT.Color.surfaceElevated.opacity(0.95))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(DT.Color.stroke, lineWidth: 1)
+                        )
+                        .position(
+                            x: min(max(selection.midX, 100), geometry.size.width - 100),
+                            y: geometry.size.height - (selection.minY - 30) > 10 ?
+                                geometry.size.height - (selection.minY - 30) :
+                                geometry.size.height - (selection.maxY + 30)
+                        )
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(DT.Color.surfaceElevated.opacity(0.95))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(DT.Color.stroke, lineWidth: 1)
-                    )
-                    .position(
-                        x: min(max(selection.midX, 100), geometry.size.width - 100),
-                        y: geometry.size.height - (selection.minY - 30) > 10 ?
-                            geometry.size.height - (selection.minY - 30) :
-                            geometry.size.height - (selection.maxY + 30)
-                    )
                 }
 
                 // Transparent mouse tracking overlay
@@ -236,7 +304,7 @@ struct CaptureOverlayView: View {
                                     hoveredWindow = window
                                     startPoint = nil
                                     currentPoint = nil
-                                    if mode == .video {
+                                    if mode == .video || mode == .scrolling {
                                         isSelected = true
                                     } else {
                                         if let cropped = crop(screenImage, rect: windowRect) {
@@ -251,7 +319,7 @@ struct CaptureOverlayView: View {
                                 return
                             }
                             
-                            if mode == .video {
+                            if mode == .video || mode == .scrolling {
                                 isSelected = true
                             } else {
                                 if let cropped = crop(screenImage, rect: rect) {

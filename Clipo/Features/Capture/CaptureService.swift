@@ -5,6 +5,7 @@ import CoreGraphics
 enum CaptureMode: Sendable {
     case image
     case video
+    case scrolling
 }
 
 @MainActor
@@ -54,7 +55,7 @@ final class CaptureService: NSObject {
                 windows: visibleWindows,
                 mode: mode,
                 onCaptured: { [weak self] croppedImage in
-                    self?.handleCapturedImage(croppedImage)
+                    self?.openEditor(with: croppedImage)
                 },
                 onRecordStart: { [weak self] rect, includeMic, includeSystemAudio in
                     self?.startRecording(rect: rect, screen: screen, includeMic: includeMic, recordSystemAudio: includeSystemAudio)
@@ -82,20 +83,21 @@ final class CaptureService: NSObject {
         recorder.startRecording(cropRect: rect, on: screen, includeMic: includeMic, recordSystemAudio: recordSystemAudio)
     }
     
-    private func handleCapturedImage(_ image: NSImage) {
+    func openEditor(with image: NSImage) {
         closeActiveWindows()
         
         // Create the editor window
         let editor = CaptureEditorWindow(
             image: image,
-            onCopy: { finalImage in
+            onCopy: { [weak self] finalImage in
                 let pb = NSPasteboard.general
                 pb.clearContents()
                 if let tiffData = finalImage.tiffRepresentation {
                     pb.setData(tiffData, forType: .tiff)
                 }
+                self?.editorWindow = nil
             },
-            onSave: { finalImage in
+            onSave: { [weak self] finalImage in
                 let savePanel = NSSavePanel()
                 savePanel.allowedContentTypes = [.png]
                 savePanel.nameFieldStringValue = "Screenshot_\(Int(Date().timeIntervalSince1970)).png"
@@ -108,9 +110,14 @@ final class CaptureService: NSObject {
                             try? pngData.write(to: url)
                         }
                     }
+                    DispatchQueue.main.async {
+                        self?.editorWindow = nil
+                    }
                 }
             },
-            onCancel: {}
+            onCancel: { [weak self] in
+                self?.editorWindow = nil
+            }
         )
         
         self.editorWindow = editor
@@ -202,6 +209,9 @@ extension CaptureService: ScreenRecorderDelegate {
         hideRecordingStatusItem()
         
         if let error = error {
+            if let outputURL = outputURL {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
             let alert = NSAlert()
             alert.messageText = "Recording Error"
             alert.informativeText = error.localizedDescription

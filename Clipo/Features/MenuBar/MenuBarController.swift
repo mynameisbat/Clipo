@@ -57,6 +57,15 @@ final class MenuBarController: NSObject {
         recordItem.target = self
         menu.addItem(recordItem)
 
+        let scrollingCaptureItem = NSMenuItem(
+            title: "Scrolling Screenshot",
+            action: #selector(scrollingCaptureScreen),
+            keyEquivalent: "p"
+        )
+        scrollingCaptureItem.keyEquivalentModifierMask = [.command, .option]
+        scrollingCaptureItem.target = self
+        menu.addItem(scrollingCaptureItem)
+
         menu.addItem(.separator())
 
         let aboutItem = NSMenuItem(
@@ -93,6 +102,12 @@ final class MenuBarController: NSObject {
             } else {
                 CaptureService.shared.startCaptureFlow(mode: .video)
             }
+        }
+    }
+
+    @objc private func scrollingCaptureScreen() {
+        Task { @MainActor in
+            CaptureService.shared.startCaptureFlow(mode: .scrolling)
         }
     }
 

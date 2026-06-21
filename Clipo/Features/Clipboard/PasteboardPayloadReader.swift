@@ -354,14 +354,6 @@ struct PasteboardPayloadReader {
             }
         }
 
-        if let attributedString = try? NSAttributedString(
-            data: data,
-            options: [.documentType: NSAttributedString.DocumentType.html],
-            documentAttributes: nil
-        ) {
-            candidates.append(attributedString.string)
-        }
-
         if let string = NSString(data: data, encoding: String.Encoding.utf8.rawValue) as String? {
             candidates.append(string)
         }

@@ -30,6 +30,7 @@ final class CaptureOverlayWindow: NSWindow {
         self.ignoresMouseEvents = false
         self.acceptsMouseMovedEvents = true
         self.hidesOnDeactivate = false
+        self.isReleasedWhenClosed = false
         
         let overlayView = CaptureOverlayView(
             screen: screen,

@@ -21,6 +21,14 @@ struct ClipboardRowView: View {
 
     @State private var isHovered = false
     @State private var sourceAppIcon: NSImage?
+    @State private var revealSensitive = false
+
+    private var displayTitle: String {
+        if item.isSensitive && !revealSensitive {
+            return item.maskedTitle
+        }
+        return item.title
+    }
 
     private var shouldShowPreview: Bool {
         guard !isCompact else { return false }
@@ -97,10 +105,22 @@ struct ClipboardRowView: View {
         HStack(alignment: .center, spacing: DT.Spacing.s) {
             sourceAppOrKindBadge
 
-            highlightedText(item.title, query: searchText)
+            highlightedText(displayTitle, query: searchText)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(DT.Color.textPrimary)
                 .lineLimit(1)
+
+            if item.isSensitive {
+                Button {
+                    revealSensitive.toggle()
+                } label: {
+                    Image(systemName: revealSensitive ? "eye.fill" : "eye.slash.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(DT.Color.accent)
+                }
+                .buttonStyle(.plain)
+                .help(revealSensitive ? "Hide sensitive info" : "Reveal sensitive info")
+            }
 
             if let badgeColor = parseColor(item.title) {
                 RoundedRectangle(cornerRadius: 3.5)
@@ -246,7 +266,8 @@ struct ClipboardRowView: View {
     private var previewBody: some View {
         switch item.previewContent {
         case let .text(contentText):
-            textPreview(contentText)
+            let textToUse = (item.isSensitive && !revealSensitive) ? (item.maskedText ?? "") : contentText
+            textPreview(textToUse)
         case let .image(url):
             imagePreview(url)
         case .none:

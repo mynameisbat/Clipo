@@ -44,6 +44,8 @@ struct SettingsView: View {
     @AppStorage(ClipboardSoundPreference.nameStorageKey) private var clipboardSoundNameRawValue = ClipboardSoundName.glass.rawValue
     @AppStorage("clipo.paused") private var isPausedFromStorage = false
     @AppStorage(HistoryRetentionPolicy.storageKey) private var retentionPolicyFromStorage: HistoryRetentionPolicy = .defaultPolicy
+    @AppStorage("clipo.settings.maxItems") private var maxItems = 1000
+    @AppStorage("clipo.settings.maxCacheSizeMB") private var maxCacheSizeMB = 1000
     @AppStorage("clipo.pinboards") private var pinboardsStorage: String = "Templates,Emails,Code"
 
     // Recording Preferences
@@ -251,6 +253,31 @@ struct SettingsView: View {
             .pickerStyle(.menu)
 
             Text("Pinned items are kept and are not auto-deleted.")
+                .font(.system(size: 11))
+                .foregroundColor(DT.Color.textSecondary)
+        }
+
+        section("History Limits") {
+            Picker("Max items count", selection: $maxItems) {
+                Text("500 items").tag(500)
+                Text("1,000 items (Default)").tag(1000)
+                Text("2,000 items").tag(2000)
+                Text("5,000 items").tag(5000)
+                Text("Unlimited").tag(0)
+            }
+            .pickerStyle(.menu)
+
+            Picker("Max image cache size", selection: $maxCacheSizeMB) {
+                Text("250 MB").tag(250)
+                Text("500 MB").tag(500)
+                Text("1 GB (Default)").tag(1000)
+                Text("2 GB").tag(2000)
+                Text("5 GB").tag(5000)
+                Text("Unlimited").tag(0)
+            }
+            .pickerStyle(.menu)
+
+            Text("Older unpinned items are automatically purged when limits are exceeded.")
                 .font(.system(size: 11))
                 .foregroundColor(DT.Color.textSecondary)
         }

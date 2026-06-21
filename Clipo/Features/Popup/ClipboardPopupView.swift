@@ -46,7 +46,7 @@ struct ClipboardPopupView: View {
 
             if viewModel.isActionMenuVisible, let selectedItem = viewModel.selectedItem {
                 ActionMenuView(
-                    title: selectedItem.title,
+                    title: selectedItem.isSensitive ? selectedItem.maskedTitle : selectedItem.title,
                     actions: viewModel.availableActions,
                     selectedIndex: viewModel.selectedActionIndex,
                     onSelect: { action in
@@ -564,6 +564,8 @@ struct QuickLookPreviewView: View {
     let item: ClipboardItem
     let onDismiss: () -> Void
     
+    @State private var revealPreviewSensitive = false
+    
     var body: some View {
         ZStack {
             // Dark glass backdrop
@@ -575,13 +577,25 @@ struct QuickLookPreviewView: View {
             
             VStack(spacing: 0) {
                 // Header bar
-                HStack {
+                HStack(spacing: DT.Spacing.s) {
                     Image(systemName: "eye.fill")
                         .foregroundColor(DT.Color.accent)
                         .font(.system(size: 11, weight: .semibold))
                     Text("Quick Look")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(DT.Color.textSecondary)
+                    
+                    if item.isSensitive {
+                        Button {
+                            revealPreviewSensitive.toggle()
+                        } label: {
+                            Image(systemName: revealPreviewSensitive ? "eye.fill" : "eye.slash.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(DT.Color.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .help(revealPreviewSensitive ? "Hide sensitive info" : "Reveal sensitive info")
+                    }
                     
                     Spacer()
                     
@@ -611,10 +625,11 @@ struct QuickLookPreviewView: View {
                     Group {
                         switch item.previewContent {
                         case let .text(text):
+                            let textToUse = (item.isSensitive && !revealPreviewSensitive) ? (item.maskedText ?? "") : text
                             if let language = item.metadata.detectedLanguage, language != .unknown {
-                                codePreview(text, language: language)
+                                codePreview(textToUse, language: language)
                             } else {
-                                textPreview(text)
+                                textPreview(textToUse)
                             }
                         case let .image(url):
                             imagePreview(url)
@@ -714,7 +729,8 @@ struct QuickLookPreviewView: View {
             }
             
             VStack(spacing: DT.Spacing.xxs) {
-                Text(item.title)
+                let titleToUse = (item.isSensitive && !revealPreviewSensitive) ? item.maskedTitle : item.title
+                Text(titleToUse)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(DT.Color.textPrimary)
                     .lineLimit(2)

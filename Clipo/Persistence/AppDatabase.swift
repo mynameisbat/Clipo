@@ -15,4 +15,9 @@ struct AppDatabase {
         try DatabaseMigratorFactory.make().migrate(queue)
         return AppDatabase(writer: queue)
     }
+
+    static func emptyInMemory() -> AppDatabase {
+        let queue = try! DatabaseQueue()
+        return AppDatabase(writer: queue)
+    }
 }

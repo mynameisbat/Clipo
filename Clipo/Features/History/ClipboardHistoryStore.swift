@@ -251,10 +251,106 @@ actor ClipboardHistoryStore: ClipboardHistoryLoading, ClipboardItemSink {
     func purgeExpiredItemsUsingConfiguredPolicy(now: Date) async throws {
         guard await purgeScheduler.shouldPurge() else { return }
 
-        guard let retentionDays = retentionDaysProvider() else { return }
-        try await purgeExpiredItems(olderThanDays: retentionDays, now: now)
+        if let retentionDays = retentionDaysProvider() {
+            try await purgeExpiredItems(olderThanDays: retentionDays, now: now)
+        }
+        
+        try? await enforceStorageLimits()
 
         await purgeScheduler.markPurged()
+    }
+
+    func enforceStorageLimits() async throws {
+        let maxItemsSetting = UserDefaults.standard.integer(forKey: "clipo.settings.maxItems")
+        let maxItems = maxItemsSetting > 0 ? maxItemsSetting : (maxItemsSetting == 0 ? 0 : 1000)
+        
+        // 1. Enforce item count limit (if not set to 0/Unlimited)
+        if maxItems > 0 {
+            let resourcePaths = try await writer.write { db in
+                let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM clipboard_items") ?? 0
+                if count > maxItems {
+                    let excess = count - maxItems
+                    let paths = try String.fetchAll(
+                        db,
+                        sql: """
+                        SELECT resourcePath FROM clipboard_items
+                        WHERE isPinned = 0 AND resourcePath IS NOT NULL
+                        ORDER BY createdAt ASC
+                        LIMIT ?
+                        """,
+                        arguments: [excess]
+                    )
+                    try db.execute(
+                        sql: """
+                        DELETE FROM clipboard_items
+                        WHERE id IN (
+                            SELECT id FROM clipboard_items
+                            WHERE isPinned = 0
+                            ORDER BY createdAt ASC
+                            LIMIT ?
+                        )
+                        """,
+                        arguments: [excess]
+                    )
+                    return paths
+                }
+                return [String]()
+            }
+            if !resourcePaths.isEmpty {
+                Self.cleanResources(at: resourcePaths)
+            }
+        }
+        
+        // 2. Enforce image cache directory size limit
+        let maxCacheSizeSetting = UserDefaults.standard.integer(forKey: "clipo.settings.maxCacheSizeMB")
+        let maxCacheSizeMB = maxCacheSizeSetting > 0 ? maxCacheSizeSetting : (maxCacheSizeSetting == 0 ? 0 : 1000)
+        if maxCacheSizeMB > 0 {
+            guard let supportRoot = try? ApplicationPaths.applicationSupportRoot() else { return }
+            let imagesDir = supportRoot.appendingPathComponent("images", isDirectory: true)
+            
+            var totalSize: Int64 = 0
+            let fileManager = FileManager.default
+            guard let enumerator = fileManager.enumerator(at: imagesDir, includingPropertiesForKeys: [.fileSizeKey], options: []) else { return }
+            
+            while let fileURL = enumerator.nextObject() as? URL {
+                if let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
+                   let fileSize = resourceValues.fileSize {
+                    totalSize += Int64(fileSize)
+                }
+            }
+            
+            let limitBytes = Int64(maxCacheSizeMB) * 1024 * 1024
+            if totalSize > limitBytes {
+                let sizeToFreeLimit = totalSize - limitBytes
+                let imagesToPurge = try await writer.write { db -> [String] in
+                    let records = try ClipboardItemRecord
+                        .filter(Column("kind") == ClipboardItemKind.image.rawValue && Column("isPinned") == false)
+                        .order(Column("createdAt").asc)
+                        .fetchAll(db)
+                    
+                    var purgedPaths: [String] = []
+                    var sizeToFree = sizeToFreeLimit
+                    
+                    for rec in records {
+                        guard sizeToFree > 0 else { break }
+                        if let path = rec.resourcePath {
+                            let fileURL = URL(fileURLWithPath: path)
+                            if let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
+                               let fileSize = resourceValues.fileSize {
+                                sizeToFree -= Int64(fileSize)
+                            }
+                            purgedPaths.append(path)
+                            try db.execute(sql: "DELETE FROM clipboard_items WHERE id = ?", arguments: [rec.id])
+                        }
+                    }
+                    return purgedPaths
+                }
+                
+                if !imagesToPurge.isEmpty {
+                    Self.cleanResources(at: imagesToPurge)
+                }
+            }
+        }
     }
 
     func purgeExpiredItems(olderThanDays: Int, now: Date) async throws {

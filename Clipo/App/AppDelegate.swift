@@ -105,5 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        
+        hotkeyService.registerScreenScrollingCapture {
+            Task { @MainActor in
+                CaptureService.shared.startCaptureFlow(mode: .scrolling)
+            }
+        }
     }
 }
